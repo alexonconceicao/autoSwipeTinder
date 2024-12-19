@@ -61,6 +61,12 @@ Você pode ajustar o comportamento do script, como as palavras proibidas e os te
 
 ---
 
+## Disclaimer
+
+Este projeto não é afiliado, associado, autorizado, patrocinado ou de qualquer forma oficialmente conectado ao Tinder ou a qualquer uma de suas subsidiárias ou afiliadas. O site oficial do Tinder pode ser encontrado em [https://tinder.com](https://tinder.com). "Tinder", bem como nomes relacionados, marcas, emblemas e imagens, são marcas registradas de propriedade do Tinder.
+
+---
+
 ## 💡 Contribuição
 
 Contribuições são bem-vindas! Sinta-se à vontade para abrir **issues** ou enviar **pull requests**.
