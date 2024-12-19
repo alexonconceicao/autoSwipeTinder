@@ -140,7 +140,7 @@
   };
 
   const intervalSlider = createSlider(
-    'Intervalo entre ações (segundos)',
+    'Tempo de espera (no Card Inicial)',
     100,
     10000,
     100,
@@ -153,7 +153,7 @@
   container.appendChild(intervalSlider);
 
   const profileWaitSlider = createSlider(
-    'Espera ao abrir perfil (segundos)',
+    'Tempo de espera (no Perfil)',
     100,
     10000,
     100,
