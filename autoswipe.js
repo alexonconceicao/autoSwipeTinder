@@ -7,7 +7,7 @@
 // @description:pt Script de auto like e dislike com filtros, sliders e painel de controle.
 // @description:pt-BR Script de auto like e dislike no Tinder com filtros, sliders e painel visual.
 
-// @version      1.7.0
+// @version      1.8.0
 // @namespace    https://greasyfork.org/users/1416065
 // @author       Nox
 // @license      MIT
@@ -38,14 +38,22 @@
   let heightThreshold = 170; // Valor padrão em cm
   let heightCondition = 'greater'; // 'greater' para maior que, 'less' para menor que
 
+  // Configurações de filtro de nomes terminados em "o"
+  /* COMENTADO - FILTRO DE NOMES DESATIVADO
+  let nameEndingOFilterEnabled = false;
+  let nameEndingOExceptions = ['Cleo', 'Cléo', 'Marco', 'Margarido', 'Margarida']; // Exceções padrão
+  */
+  let nameEndingOFilterEnabled = false;
+  let nameEndingOExceptions = [];
+
   // Configurações de limite de likes
   let likesLimit = null; // null = desativado, número = limite ativo
   let likesLimitEnabled = false;
 
   // Rastreamento do último dislike
   let lastDislikeTimestamp = null;
-  let lastDislikeName = null;
-  let lastDislikeAge = null;
+  let lastDislikeProfileName = null;
+  let lastDislikeProfileAge = null;
   let lastDislikeReason = null;
   let lastDislikeLikesCount = 0;
 
@@ -56,6 +64,10 @@
   // Carregar nome e idade do último perfil do localStorage
   currentProfileName = localStorage.getItem('currentProfileName');
   currentProfileAge = localStorage.getItem('currentProfileAge');
+
+  // Carregar nome e idade do último dislike do localStorage
+  lastDislikeProfileName = localStorage.getItem('lastDislikeProfileName');
+  lastDislikeProfileAge = localStorage.getItem('lastDislikeProfileAge');
 
   // Carregar valores armazenados no localStorage, se existirem
   interval = parseInt(localStorage.getItem('interval')) || interval;
@@ -77,6 +89,15 @@
   }
   likesLimitEnabled = localStorage.getItem('likesLimitEnabled') === 'true' || false;
 
+  // Carregar configurações de filtro de nomes terminados em "o"
+  /* COMENTADO - FILTRO DE NOMES DESATIVADO
+  nameEndingOFilterEnabled = localStorage.getItem('nameEndingOFilterEnabled') === 'true' || false;
+  const storedExceptions = localStorage.getItem('nameEndingOExceptions');
+  if (storedExceptions) {
+    nameEndingOExceptions = JSON.parse(storedExceptions);
+  }
+  */
+
   // Resetar contador ao carregar página (nova rodada)
   likesCount = 0;
 
@@ -86,7 +107,8 @@
   container.style.top = '10px';
   container.style.right = '10px';
   container.style.zIndex = '1000';
-  container.style.width = '300px';
+  container.style.width = '700px';
+  container.style.maxHeight = '90vh';
   container.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
   container.style.color = 'white';
   container.style.padding = '15px';
@@ -94,8 +116,8 @@
   container.style.fontFamily = 'Arial, sans-serif';
   container.style.fontSize = '14px';
   container.style.display = 'flex';
-  container.style.flexDirection = 'column';
-  container.style.gap = '10px';
+  container.style.flexDirection = 'row';
+  container.style.gap = '15px';
   container.style.opacity = '0.2';
   container.style.transition = 'opacity 0.3s';
   document.body.appendChild(container);
@@ -163,7 +185,17 @@
   dislikeCounterContainer.appendChild(dislikeCounter);
   statsContainer.appendChild(dislikeCounterContainer);
 
-  container.appendChild(statsContainer);
+  // Criar container para filtros (lado esquerdo)
+  const leftColumn = document.createElement('div');
+  leftColumn.style.flex = '1';
+  leftColumn.style.display = 'flex';
+  leftColumn.style.flexDirection = 'column';
+  leftColumn.style.gap = '10px';
+  leftColumn.style.overflowY = 'auto';
+  leftColumn.style.maxHeight = '100%';
+  container.appendChild(leftColumn);
+
+  leftColumn.appendChild(statsContainer);
 
   forbiddenWords =
     JSON.parse(localStorage.getItem('forbiddenWords')) || forbiddenWords;
@@ -179,8 +211,8 @@
   const forbiddenWordsLabel = document.createElement('label');
   forbiddenWordsLabel.textContent =
     'Palavras proibidas (separadas por vírgula)';
-  container.appendChild(forbiddenWordsLabel);
-  container.appendChild(forbiddenWordsInput);
+  leftColumn.appendChild(forbiddenWordsLabel);
+  leftColumn.appendChild(forbiddenWordsInput);
 
   forbiddenWordsInput.addEventListener('input', () => {
     forbiddenWords = forbiddenWordsInput.value
@@ -200,7 +232,7 @@
   pauseButton.style.border = 'none';
   pauseButton.style.fontWeight = 'bold';
   pauseButton.style.transition = 'background-color 0.3s';
-  container.appendChild(pauseButton);
+  leftColumn.appendChild(pauseButton);
 
   const createSlider = (
     labelText,
@@ -267,7 +299,7 @@
   profileWaitContainer.style.flexDirection = 'column';
   profileWaitContainer.style.gap = '10px';
   profileWaitContainer.appendChild(profileWaitSlider);
-  container.appendChild(profileWaitContainer);
+  leftColumn.appendChild(profileWaitContainer);
 
   const intervalSlider = createSlider(
     'Intervalo entre ações (segundos)',
@@ -292,7 +324,7 @@
   intervalContainer.style.flexDirection = 'column';
   intervalContainer.style.gap = '10px';
   intervalContainer.appendChild(intervalSlider);
-  container.appendChild(intervalContainer);
+  leftColumn.appendChild(intervalContainer);
 
 
 
@@ -306,7 +338,7 @@
   likesLimitContainer.style.display = 'flex';
   likesLimitContainer.style.flexDirection = 'column';
   likesLimitContainer.style.gap = '10px';
-  container.appendChild(likesLimitContainer);
+  leftColumn.appendChild(likesLimitContainer);
 
   const likesLimitTitle = document.createElement('div');
   likesLimitTitle.textContent = 'Limitador de Likes';
@@ -424,7 +456,7 @@
   heightFilterContainer.style.display = 'flex';
   heightFilterContainer.style.flexDirection = 'column';
   heightFilterContainer.style.gap = '10px';
-  container.appendChild(heightFilterContainer);
+  leftColumn.appendChild(heightFilterContainer);
 
   // Container para título e tooltip
   const heightFilterTitleRow = document.createElement('div');
@@ -587,6 +619,87 @@
   heightInput.disabled = !heightFilterEnabled;
   heightConditionSelect.disabled = !heightFilterEnabled;
 
+  // Seção de filtro por nome terminado em "o"
+  /* COMENTADO - FILTRO DE NOMES DESATIVADO
+  const nameFilterContainer = document.createElement('div');
+  nameFilterContainer.style.backgroundColor = '#2a2a2a';
+  nameFilterContainer.style.padding = '10px';
+  nameFilterContainer.style.borderRadius = '8px';
+  nameFilterContainer.style.border = '2px solid #ffcc00';
+  nameFilterContainer.style.marginTop = '10px';
+  nameFilterContainer.style.display = 'flex';
+  nameFilterContainer.style.flexDirection = 'column';
+  nameFilterContainer.style.gap = '10px';
+  leftColumn.appendChild(nameFilterContainer);
+
+  const nameFilterTitle = document.createElement('div');
+  nameFilterTitle.textContent = 'Filtro: Nomes Terminados em "o"';
+  nameFilterTitle.style.fontWeight = 'bold';
+  nameFilterTitle.style.color = '#ffcc00';
+  nameFilterTitle.style.marginBottom = '5px';
+  nameFilterContainer.appendChild(nameFilterTitle);
+
+  // Container para checkbox
+  const nameFilterRow = document.createElement('div');
+  nameFilterRow.style.display = 'flex';
+  nameFilterRow.style.alignItems = 'center';
+  nameFilterRow.style.gap = '10px';
+  nameFilterContainer.appendChild(nameFilterRow);
+
+  const enableNameFilterCheckbox = document.createElement('input');
+  enableNameFilterCheckbox.type = 'checkbox';
+  enableNameFilterCheckbox.checked = nameEndingOFilterEnabled;
+
+  const nameFilterStatusText = document.createElement('span');
+  nameFilterStatusText.textContent = nameEndingOFilterEnabled ? 'Ativado' : 'Desativado';
+  nameFilterStatusText.style.color = nameEndingOFilterEnabled ? '#4caf50' : '#f44336';
+  nameFilterStatusText.style.fontWeight = 'bold';
+  nameFilterStatusText.style.marginLeft = '5px';
+
+  nameFilterRow.appendChild(enableNameFilterCheckbox);
+  nameFilterRow.appendChild(nameFilterStatusText);
+
+  // Container para gerenciar exceções
+  const exceptionsLabel = document.createElement('label');
+  exceptionsLabel.textContent = 'Exceções (nomes que terminam com "o" mas são permitidos):';
+  exceptionsLabel.style.marginTop = '10px';
+  exceptionsLabel.style.display = 'block';
+  nameFilterContainer.appendChild(exceptionsLabel);
+
+  const exceptionsInput = document.createElement('textarea');
+  exceptionsInput.value = nameEndingOExceptions.join(', ');
+  exceptionsInput.style.width = '100%';
+  exceptionsInput.style.height = '60px';
+  exceptionsInput.style.borderRadius = '8px';
+  exceptionsInput.style.padding = '5px';
+  exceptionsInput.style.marginTop = '5px';
+  exceptionsInput.style.border = '2px solid #ffcc00';
+  exceptionsInput.placeholder = 'Ex: Cleo, Cléo, Marco, Margarido';
+  nameFilterContainer.appendChild(exceptionsInput);
+
+  // Event listeners para filtro de nomes
+  enableNameFilterCheckbox.addEventListener('change', () => {
+    nameEndingOFilterEnabled = enableNameFilterCheckbox.checked;
+    localStorage.setItem('nameEndingOFilterEnabled', nameEndingOFilterEnabled);
+
+    nameFilterStatusText.textContent = nameEndingOFilterEnabled ? 'Ativado' : 'Desativado';
+    nameFilterStatusText.style.color = nameEndingOFilterEnabled ? '#4caf50' : '#f44336';
+
+    exceptionsInput.disabled = !nameEndingOFilterEnabled;
+  });
+
+  exceptionsInput.addEventListener('input', () => {
+    nameEndingOExceptions = exceptionsInput.value
+      .split(',')
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+    localStorage.setItem('nameEndingOExceptions', JSON.stringify(nameEndingOExceptions));
+  });
+
+  // Inicializar estado do input
+  exceptionsInput.disabled = !nameEndingOFilterEnabled;
+  */
+
   pauseButton.addEventListener('click', () => {
     isPaused = !isPaused;
     pauseButton.textContent = isPaused ? 'Continuar' : 'Pausar';
@@ -598,6 +711,32 @@
     }
   });
 
+  // Criar container para informações (lado direito)
+  const rightColumn = document.createElement('div');
+  rightColumn.style.flex = '1';
+  rightColumn.style.display = 'flex';
+  rightColumn.style.flexDirection = 'column';
+  rightColumn.style.gap = '10px';
+  rightColumn.style.overflowY = 'auto';
+  rightColumn.style.maxHeight = '100%';
+  container.appendChild(rightColumn);
+
+  // Container de Nome e Idade
+  const nameAgeContainer = document.createElement('div');
+  nameAgeContainer.style.padding = '10px';
+  nameAgeContainer.style.backgroundColor = '#1c1c1c';
+  nameAgeContainer.style.borderRadius = '8px';
+  nameAgeContainer.style.color = '#ffcc00';
+  nameAgeContainer.style.marginTop = '10px';
+  nameAgeContainer.style.display = 'flex';
+  nameAgeContainer.style.flexDirection = 'column';
+  nameAgeContainer.style.gap = '5px';
+  // Inicializar com valores do localStorage se existirem
+  const initialName = currentProfileName || 'Não disponível';
+  const initialAge = currentProfileAge || 'Não disponível';
+  nameAgeContainer.textContent = `Nome: ${initialName}, Idade: ${initialAge}`;
+  rightColumn.appendChild(nameAgeContainer);
+
   // Criação do contêiner de informações do perfil
   const profileInfoContainer = document.createElement('div');
   profileInfoContainer.style.padding = '10px';
@@ -608,7 +747,7 @@
   profileInfoContainer.style.display = 'flex';
   profileInfoContainer.style.flexDirection = 'column';
   profileInfoContainer.style.gap = '5px';
-  container.appendChild(profileInfoContainer);
+  rightColumn.appendChild(profileInfoContainer);
 
   // Função para criar cada linha de informação
   function createInfoRow(label, value) {
@@ -834,6 +973,139 @@
     return { name, age };
   }
 
+  // Função para extrair nome e idade APENAS do perfil aberto (ignora card principal)
+  function extractNameAndAgeFromOpenProfile() {
+    let name = 'Não disponível';
+    let age = 'Não disponível';
+
+    // Buscar APENAS no perfil aberto (profileContainer)
+    const profileContainer = document.querySelector(
+      '.Bgc\\(--color--background-sparks-profile\\)'
+    );
+
+    // Método 1 (PRIORITÁRIO): Buscar pelo padrão específico do perfil aberto
+    // h1 com aria-label="Nome X anos" ou spans dentro do h1
+    let h1WithAriaLabel = null;
+
+    // Primeiro tentar buscar dentro do profileContainer
+    if (profileContainer) {
+      h1WithAriaLabel = profileContainer.querySelector('h1[aria-label]');
+    }
+
+    // Se não encontrou no container, buscar diretamente no documento
+    // (pode acontecer se o container não for encontrado ou o h1 estiver fora dele)
+    if (!h1WithAriaLabel) {
+      h1WithAriaLabel = document.querySelector('h1[aria-label]');
+    }
+
+    if (h1WithAriaLabel) {
+      // Sempre tentar extrair dos spans primeiro (mais confiável)
+      const spansInH1 = h1WithAriaLabel.querySelectorAll('span');
+      if (spansInH1.length >= 2) {
+        // Primeiro span geralmente tem o nome
+        const nameSpan = spansInH1[0];
+        const nameText = nameSpan ? nameSpan.textContent.trim() : '';
+        if (nameText && nameText.length > 0 && name === 'Não disponível') {
+          name = nameText;
+        }
+        // Segundo span geralmente tem a idade
+        const ageSpan = spansInH1[1];
+        const ageText = ageSpan ? ageSpan.textContent.trim() : '';
+        if (ageText && ageText.length > 0 && /^\d+$/.test(ageText) && age === 'Não disponível') {
+          age = ageText;
+        }
+      }
+
+      // Se ainda não encontrou, tentar pelo aria-label
+      if (name === 'Não disponível' || age === 'Não disponível') {
+        const ariaLabel = h1WithAriaLabel.getAttribute('aria-label');
+        if (ariaLabel) {
+          // Padrão: "Nome X anos" ou "Nome X anos" (com "anos")
+          const ariaMatch = ariaLabel.match(/^(.+?)\s+(\d+)\s+anos?$/i);
+          if (ariaMatch) {
+            if (name === 'Não disponível') name = ariaMatch[1].trim();
+            if (age === 'Não disponível') age = ariaMatch[2].trim();
+          } else {
+            // Tentar extrair do aria-label sem "anos": "Nome X"
+            const ariaMatch2 = ariaLabel.match(/^(.+?)\s+(\d+)$/);
+            if (ariaMatch2) {
+              if (name === 'Não disponível') name = ariaMatch2[1].trim();
+              if (age === 'Não disponível') age = ariaMatch2[2].trim();
+            }
+          }
+        }
+      }
+    }
+
+    // Método 2: Buscar usando itemprop="name" e itemprop="age" dentro do profileContainer
+    if ((name === 'Não disponível' || age === 'Não disponível') && profileContainer) {
+      const profileNameElement = profileContainer.querySelector('span[itemprop="name"], [itemprop="name"]');
+      const profileAgeElement = profileContainer.querySelector('span[itemprop="age"], [itemprop="age"]');
+
+      if (profileNameElement && name === 'Não disponível') {
+        name = profileNameElement.textContent.trim();
+      }
+      if (profileAgeElement && age === 'Não disponível') {
+        age = profileAgeElement.textContent.trim();
+      }
+    }
+
+    // Método 3: Procurar por h1 ou h2 que contém nome e idade dentro do profileContainer
+    if ((name === 'Não disponível' || age === 'Não disponível') && profileContainer) {
+      const headers = profileContainer.querySelectorAll('h1, h2');
+      for (const header of headers) {
+        const text = header.textContent.trim();
+        // Padrão comum: "Nome, Idade" ou "Nome Idade"
+        const nameAgeMatch = text.match(/^(.+?),\s*(\d+)$/);
+        if (nameAgeMatch) {
+          if (name === 'Não disponível') name = nameAgeMatch[1].trim();
+          if (age === 'Não disponível') age = nameAgeMatch[2].trim();
+          break;
+        }
+        // Padrão alternativo: "Nome Idade" (sem vírgula)
+        const nameAgeMatch2 = text.match(/^(.+?)\s+(\d+)$/);
+        if (nameAgeMatch2 && nameAgeMatch2[2].length <= 3) {
+          if (name === 'Não disponível') name = nameAgeMatch2[1].trim();
+          if (age === 'Não disponível') age = nameAgeMatch2[2].trim();
+          break;
+        }
+      }
+    }
+
+    // Método 4: Buscar em spans dentro do profileContainer
+    if (name === 'Não disponível' || age === 'Não disponível') {
+      const allSpans = profileContainer.querySelectorAll('span');
+      for (const span of allSpans) {
+        const text = span.textContent.trim();
+        const nameAgeMatch = text.match(/^(.+?),\s*(\d+)$/);
+        if (nameAgeMatch && nameAgeMatch[1].length > 1 && nameAgeMatch[1].length < 50) {
+          if (name === 'Não disponível') name = nameAgeMatch[1].trim();
+          if (age === 'Não disponível') age = nameAgeMatch[2].trim();
+          break;
+        }
+      }
+    }
+
+    return { name, age };
+  }
+
+  // Função helper para capturar nome e idade do perfil aberto atual
+  function getCurrentProfileNameAndAge() {
+    try {
+      const nameAndAge = extractNameAndAge();
+      return {
+        name: nameAndAge?.name || 'Não disponível',
+        age: nameAndAge?.age || 'Não disponível'
+      };
+    } catch (error) {
+      console.error('Erro ao capturar nome e idade do perfil:', error);
+      return {
+        name: 'Não disponível',
+        age: 'Não disponível'
+      };
+    }
+  }
+
   // Função para converter altura para cm (aceita "1,70 m" e "188 cm")
   function convertHeightToCm(heightString) {
     if (!heightString || heightString === 'Não informado') {
@@ -917,13 +1189,55 @@
     return { shouldDislike, reason };
   }
 
+  // Função para verificar filtro de nomes terminados em "o"
+  /* COMENTADO - FILTRO DE NOMES DESATIVADO
+  function checkNameEndingOFilter(name) {
+    if (!nameEndingOFilterEnabled || !name) {
+      return { shouldDislike: false, reason: null };
+    }
+
+    // Normalizar nome (remover acentos e converter para minúsculas para comparação)
+    const normalizeName = (str) => {
+      return str.toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+    };
+
+    const normalizedName = normalizeName(name);
+
+    // Verificar se termina com "o"
+    if (!normalizedName.endsWith('o')) {
+      return { shouldDislike: false, reason: null };
+    }
+
+    // Verificar se está na lista de exceções
+    const isException = nameEndingOExceptions.some(exception =>
+      normalizeName(exception) === normalizedName
+    );
+
+    if (isException) {
+      return { shouldDislike: false, reason: null };
+    }
+
+    // Se termina com "o" e não é exceção, dar dislike
+    return {
+      shouldDislike: true,
+      reason: `Nome termina com "o": "${name}"`
+    };
+  }
+  */
+  function checkNameEndingOFilter(name) {
+    return { shouldDislike: false, reason: null };
+  }
+
   const profileInfo = document.createElement('div');
   profileInfo.style.padding = '10px';
   profileInfo.style.backgroundColor = '#1c1c1c';
   profileInfo.style.borderRadius = '8px';
   profileInfo.style.color = '#ffcc00';
   profileInfo.textContent = 'Sobre mim: Não disponível';
-  container.appendChild(profileInfo);
+  rightColumn.appendChild(profileInfo);
 
   // Card de último dislike dentro do modal
   const lastDislikeCard = document.createElement('div');
@@ -939,7 +1253,7 @@
   lastDislikeCard.style.border = '2px solid #f44336';
   lastDislikeCard.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3)';
   lastDislikeCard.style.marginTop = '10px';
-  container.appendChild(lastDislikeCard);
+  rightColumn.appendChild(lastDislikeCard);
 
   function updateLikeCounter() {
     if (likesLimitEnabled && likesLimit !== null) {
@@ -1016,6 +1330,18 @@
     } else {
       profileInfo.style.color = '#ffcc00';
     }
+
+    // Atualizar container de Nome e Idade
+    const name = currentProfileName || 'Não disponível';
+    const age = currentProfileAge || 'Não disponível';
+    nameAgeContainer.textContent = `Nome: ${name}, Idade: ${age}`;
+  }
+
+  // Função para atualizar apenas o nome e idade
+  function updateNameAge() {
+    const name = currentProfileName || 'Não disponível';
+    const age = currentProfileAge || 'Não disponível';
+    nameAgeContainer.textContent = `Nome: ${name}, Idade: ${age}`;
   }
 
   function updateLastDislikeCard() {
@@ -1040,8 +1366,8 @@
     // Log de debug
     console.log('Atualizando card de último dislike:', {
       timestamp: lastDislikeTimestamp,
-      name: lastDislikeName,
-      age: lastDislikeAge,
+      name: lastDislikeProfileName,
+      age: lastDislikeProfileAge,
       reason: lastDislikeReason,
       likesCount: lastDislikeLikesCount,
       currentLikes: likesCount
@@ -1062,9 +1388,9 @@
                       `${likesSinceDislike} likes`;
 
     // Montar conteúdo do card
-    const nameAgeText = lastDislikeName && lastDislikeAge ?
-                       `${lastDislikeName}, ${lastDislikeAge}` :
-                       (lastDislikeName || 'Nome não disponível');
+    const nameAgeText = lastDislikeProfileName && lastDislikeProfileAge ?
+                       `${lastDislikeProfileName}, ${lastDislikeProfileAge}` :
+                       (lastDislikeProfileName || 'Nome não disponível');
 
     const reasonText = lastDislikeReason || 'Não especificado';
 
@@ -1317,10 +1643,12 @@
             if (nameAndAgeFromProfile && nameAndAgeFromProfile.name !== 'Não disponível') {
               currentProfileName = nameAndAgeFromProfile.name;
               localStorage.setItem('currentProfileName', currentProfileName);
+              updateNameAge();
             }
             if (nameAndAgeFromProfile && nameAndAgeFromProfile.age !== 'Não disponível') {
               currentProfileAge = nameAndAgeFromProfile.age;
               localStorage.setItem('currentProfileAge', currentProfileAge);
+              updateNameAge();
             }
           } catch (error) {
             console.error('Erro ao capturar nome e idade do perfil:', error);
@@ -1355,21 +1683,25 @@
             forbiddenWordFound = true;
             const dislikeButton = findDislikeButton();
             if (dislikeButton) {
+              // Capturar nome e idade DIRETAMENTE do perfil aberto no último momento, antes de dar o dislike
+              const nameAndAgeFromOpenProfile = extractNameAndAgeFromOpenProfile();
+              lastDislikeProfileName = nameAndAgeFromOpenProfile.name !== 'Não disponível' ? String(nameAndAgeFromOpenProfile.name) : 'Não disponível';
+              lastDislikeProfileAge = nameAndAgeFromOpenProfile.age !== 'Não disponível' ? String(nameAndAgeFromOpenProfile.age) : 'Não disponível';
+              localStorage.setItem('lastDislikeProfileName', lastDislikeProfileName);
+              localStorage.setItem('lastDislikeProfileAge', lastDislikeProfileAge);
+              lastDislikeReason = `Palavra proibida: "${word}"`;
+              lastDislikeTimestamp = new Date();
+              lastDislikeLikesCount = likesCount;
+
+              // Agora dar o dislike
               dislikeButton.click();
               dislikesCount++;
               updateDislikeCounter();
 
-              // Salvar informações do último dislike usando nome e idade já capturados
-              lastDislikeTimestamp = new Date();
-              lastDislikeName = currentProfileName || 'Não disponível';
-              lastDislikeAge = currentProfileAge || 'Não disponível';
-              lastDislikeReason = `Palavra proibida: "${word}"`;
-              lastDislikeLikesCount = likesCount;
-
               console.log('Dislike registrado:', {
                 timestamp: lastDislikeTimestamp,
-                name: lastDislikeName,
-                age: lastDislikeAge,
+                name: lastDislikeProfileName,
+                age: lastDislikeProfileAge,
                 reason: lastDislikeReason,
                 likesCount: lastDislikeLikesCount
               });
@@ -1379,7 +1711,7 @@
                 updateLastDislikeCard();
               }, 100);
 
-              console.log(`Dislike: ${word} - ${lastDislikeName}, ${lastDislikeAge} anos`);
+              console.log(`Dislike: ${word} - ${lastDislikeProfileName}, ${lastDislikeProfileAge} anos`);
               // Esperar antes de continuar
               await new Promise((resolve) => setTimeout(resolve, interval));
               if (isPaused) return;
@@ -1395,21 +1727,25 @@
           if (heightCheck.shouldDislike) {
             const dislikeButton = findDislikeButton();
             if (dislikeButton) {
+              // Capturar nome e idade DIRETAMENTE do perfil aberto no último momento, antes de dar o dislike
+              const nameAndAgeFromOpenProfile = extractNameAndAgeFromOpenProfile();
+              lastDislikeProfileName = nameAndAgeFromOpenProfile.name !== 'Não disponível' ? String(nameAndAgeFromOpenProfile.name) : 'Não disponível';
+              lastDislikeProfileAge = nameAndAgeFromOpenProfile.age !== 'Não disponível' ? String(nameAndAgeFromOpenProfile.age) : 'Não disponível';
+              localStorage.setItem('lastDislikeProfileName', lastDislikeProfileName);
+              localStorage.setItem('lastDislikeProfileAge', lastDislikeProfileAge);
+              lastDislikeReason = heightCheck.reason;
+              lastDislikeTimestamp = new Date();
+              lastDislikeLikesCount = likesCount;
+
+              // Agora dar o dislike
               dislikeButton.click();
               dislikesCount++;
               updateDislikeCounter();
 
-              // Salvar informações do último dislike usando nome e idade já capturados
-              lastDislikeTimestamp = new Date();
-              lastDislikeName = currentProfileName || 'Não disponível';
-              lastDislikeAge = currentProfileAge || 'Não disponível';
-              lastDislikeReason = heightCheck.reason;
-              lastDislikeLikesCount = likesCount;
-
               console.log('Dislike registrado:', {
                 timestamp: lastDislikeTimestamp,
-                name: lastDislikeName,
-                age: lastDislikeAge,
+                name: lastDislikeProfileName,
+                age: lastDislikeProfileAge,
                 reason: lastDislikeReason,
                 likesCount: lastDislikeLikesCount
               });
@@ -1419,7 +1755,7 @@
                 updateLastDislikeCard();
               }, 100);
 
-              console.log(`Dislike: ${heightCheck.reason} - ${lastDislikeName}, ${lastDislikeAge} anos`);
+              console.log(`Dislike: ${heightCheck.reason} - ${lastDislikeProfileName}, ${lastDislikeProfileAge} anos`);
               const delay = interval;
               await new Promise((resolve) => setTimeout(resolve, delay));
               if (isPaused) return;
@@ -1428,7 +1764,51 @@
           }
         }
 
-        // 8. SE NÃO HOUVE FILTROS, DAR LIKE
+        // 8. VERIFICAR FILTRO DE NOMES TERMINADOS EM "o"
+        /* COMENTADO - FILTRO DE NOMES DESATIVADO
+        if (currentProfileName && currentProfileName !== 'Não disponível') {
+          const nameCheck = checkNameEndingOFilter(currentProfileName);
+
+          if (nameCheck.shouldDislike) {
+            const dislikeButton = findDislikeButton();
+            if (dislikeButton) {
+              // Capturar nome e idade DIRETAMENTE do perfil aberto no último momento, antes de dar o dislike
+              const nameAndAgeFromOpenProfile = extractNameAndAgeFromOpenProfile();
+              lastDislikeProfileName = nameAndAgeFromOpenProfile.name !== 'Não disponível' ? String(nameAndAgeFromOpenProfile.name) : 'Não disponível';
+              lastDislikeProfileAge = nameAndAgeFromOpenProfile.age !== 'Não disponível' ? String(nameAndAgeFromOpenProfile.age) : 'Não disponível';
+              localStorage.setItem('lastDislikeProfileName', lastDislikeProfileName);
+              localStorage.setItem('lastDislikeProfileAge', lastDislikeProfileAge);
+              lastDislikeReason = nameCheck.reason;
+              lastDislikeTimestamp = new Date();
+              lastDislikeLikesCount = likesCount;
+
+              // Agora dar o dislike
+              dislikeButton.click();
+              dislikesCount++;
+              updateDislikeCounter();
+
+              console.log('Dislike registrado:', {
+                timestamp: lastDislikeTimestamp,
+                name: lastDislikeProfileName,
+                age: lastDislikeProfileAge,
+                reason: lastDislikeReason,
+                likesCount: lastDislikeLikesCount
+              });
+
+              setTimeout(() => {
+                updateLastDislikeCard();
+              }, 100);
+
+              console.log(`Dislike: ${nameCheck.reason} - ${lastDislikeProfileName}, ${lastDislikeProfileAge} anos`);
+              await new Promise((resolve) => setTimeout(resolve, interval));
+              if (isPaused) return;
+              return;
+            }
+          }
+        }
+        */
+
+        // 9. SE NÃO HOUVE FILTROS, DAR LIKE
         const likeButton = findLikeButton();
         if (likeButton) {
           likeButton.click();
