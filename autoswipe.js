@@ -38,14 +38,6 @@
   let heightThreshold = 170; // Valor padrão em cm
   let heightCondition = 'greater'; // 'greater' para maior que, 'less' para menor que
 
-  // Configurações de filtro de nomes terminados em "o"
-  /* COMENTADO - FILTRO DE NOMES DESATIVADO
-  let nameEndingOFilterEnabled = false;
-  let nameEndingOExceptions = ['Cleo', 'Cléo', 'Marco', 'Margarido', 'Margarida']; // Exceções padrão
-  */
-  let nameEndingOFilterEnabled = false;
-  let nameEndingOExceptions = [];
-
   // Configurações de limite de likes
   let likesLimit = null; // null = desativado, número = limite ativo
   let likesLimitEnabled = false;
@@ -88,15 +80,6 @@
     }
   }
   likesLimitEnabled = localStorage.getItem('likesLimitEnabled') === 'true' || false;
-
-  // Carregar configurações de filtro de nomes terminados em "o"
-  /* COMENTADO - FILTRO DE NOMES DESATIVADO
-  nameEndingOFilterEnabled = localStorage.getItem('nameEndingOFilterEnabled') === 'true' || false;
-  const storedExceptions = localStorage.getItem('nameEndingOExceptions');
-  if (storedExceptions) {
-    nameEndingOExceptions = JSON.parse(storedExceptions);
-  }
-  */
 
   // Resetar contador ao carregar página (nova rodada)
   likesCount = 0;
@@ -619,87 +602,6 @@
   heightInput.disabled = !heightFilterEnabled;
   heightConditionSelect.disabled = !heightFilterEnabled;
 
-  // Seção de filtro por nome terminado em "o"
-  /* COMENTADO - FILTRO DE NOMES DESATIVADO
-  const nameFilterContainer = document.createElement('div');
-  nameFilterContainer.style.backgroundColor = '#2a2a2a';
-  nameFilterContainer.style.padding = '10px';
-  nameFilterContainer.style.borderRadius = '8px';
-  nameFilterContainer.style.border = '2px solid #ffcc00';
-  nameFilterContainer.style.marginTop = '10px';
-  nameFilterContainer.style.display = 'flex';
-  nameFilterContainer.style.flexDirection = 'column';
-  nameFilterContainer.style.gap = '10px';
-  leftColumn.appendChild(nameFilterContainer);
-
-  const nameFilterTitle = document.createElement('div');
-  nameFilterTitle.textContent = 'Filtro: Nomes Terminados em "o"';
-  nameFilterTitle.style.fontWeight = 'bold';
-  nameFilterTitle.style.color = '#ffcc00';
-  nameFilterTitle.style.marginBottom = '5px';
-  nameFilterContainer.appendChild(nameFilterTitle);
-
-  // Container para checkbox
-  const nameFilterRow = document.createElement('div');
-  nameFilterRow.style.display = 'flex';
-  nameFilterRow.style.alignItems = 'center';
-  nameFilterRow.style.gap = '10px';
-  nameFilterContainer.appendChild(nameFilterRow);
-
-  const enableNameFilterCheckbox = document.createElement('input');
-  enableNameFilterCheckbox.type = 'checkbox';
-  enableNameFilterCheckbox.checked = nameEndingOFilterEnabled;
-
-  const nameFilterStatusText = document.createElement('span');
-  nameFilterStatusText.textContent = nameEndingOFilterEnabled ? 'Ativado' : 'Desativado';
-  nameFilterStatusText.style.color = nameEndingOFilterEnabled ? '#4caf50' : '#f44336';
-  nameFilterStatusText.style.fontWeight = 'bold';
-  nameFilterStatusText.style.marginLeft = '5px';
-
-  nameFilterRow.appendChild(enableNameFilterCheckbox);
-  nameFilterRow.appendChild(nameFilterStatusText);
-
-  // Container para gerenciar exceções
-  const exceptionsLabel = document.createElement('label');
-  exceptionsLabel.textContent = 'Exceções (nomes que terminam com "o" mas são permitidos):';
-  exceptionsLabel.style.marginTop = '10px';
-  exceptionsLabel.style.display = 'block';
-  nameFilterContainer.appendChild(exceptionsLabel);
-
-  const exceptionsInput = document.createElement('textarea');
-  exceptionsInput.value = nameEndingOExceptions.join(', ');
-  exceptionsInput.style.width = '100%';
-  exceptionsInput.style.height = '60px';
-  exceptionsInput.style.borderRadius = '8px';
-  exceptionsInput.style.padding = '5px';
-  exceptionsInput.style.marginTop = '5px';
-  exceptionsInput.style.border = '2px solid #ffcc00';
-  exceptionsInput.placeholder = 'Ex: Cleo, Cléo, Marco, Margarido';
-  nameFilterContainer.appendChild(exceptionsInput);
-
-  // Event listeners para filtro de nomes
-  enableNameFilterCheckbox.addEventListener('change', () => {
-    nameEndingOFilterEnabled = enableNameFilterCheckbox.checked;
-    localStorage.setItem('nameEndingOFilterEnabled', nameEndingOFilterEnabled);
-
-    nameFilterStatusText.textContent = nameEndingOFilterEnabled ? 'Ativado' : 'Desativado';
-    nameFilterStatusText.style.color = nameEndingOFilterEnabled ? '#4caf50' : '#f44336';
-
-    exceptionsInput.disabled = !nameEndingOFilterEnabled;
-  });
-
-  exceptionsInput.addEventListener('input', () => {
-    nameEndingOExceptions = exceptionsInput.value
-      .split(',')
-      .map((name) => name.trim())
-      .filter((name) => name.length > 0);
-    localStorage.setItem('nameEndingOExceptions', JSON.stringify(nameEndingOExceptions));
-  });
-
-  // Inicializar estado do input
-  exceptionsInput.disabled = !nameEndingOFilterEnabled;
-  */
-
   pauseButton.addEventListener('click', () => {
     isPaused = !isPaused;
     pauseButton.textContent = isPaused ? 'Continuar' : 'Pausar';
@@ -1187,48 +1089,6 @@
     }
 
     return { shouldDislike, reason };
-  }
-
-  // Função para verificar filtro de nomes terminados em "o"
-  /* COMENTADO - FILTRO DE NOMES DESATIVADO
-  function checkNameEndingOFilter(name) {
-    if (!nameEndingOFilterEnabled || !name) {
-      return { shouldDislike: false, reason: null };
-    }
-
-    // Normalizar nome (remover acentos e converter para minúsculas para comparação)
-    const normalizeName = (str) => {
-      return str.toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .trim();
-    };
-
-    const normalizedName = normalizeName(name);
-
-    // Verificar se termina com "o"
-    if (!normalizedName.endsWith('o')) {
-      return { shouldDislike: false, reason: null };
-    }
-
-    // Verificar se está na lista de exceções
-    const isException = nameEndingOExceptions.some(exception =>
-      normalizeName(exception) === normalizedName
-    );
-
-    if (isException) {
-      return { shouldDislike: false, reason: null };
-    }
-
-    // Se termina com "o" e não é exceção, dar dislike
-    return {
-      shouldDislike: true,
-      reason: `Nome termina com "o": "${name}"`
-    };
-  }
-  */
-  function checkNameEndingOFilter(name) {
-    return { shouldDislike: false, reason: null };
   }
 
   const profileInfo = document.createElement('div');
@@ -1764,51 +1624,7 @@
           }
         }
 
-        // 8. VERIFICAR FILTRO DE NOMES TERMINADOS EM "o"
-        /* COMENTADO - FILTRO DE NOMES DESATIVADO
-        if (currentProfileName && currentProfileName !== 'Não disponível') {
-          const nameCheck = checkNameEndingOFilter(currentProfileName);
-
-          if (nameCheck.shouldDislike) {
-            const dislikeButton = findDislikeButton();
-            if (dislikeButton) {
-              // Capturar nome e idade DIRETAMENTE do perfil aberto no último momento, antes de dar o dislike
-              const nameAndAgeFromOpenProfile = extractNameAndAgeFromOpenProfile();
-              lastDislikeProfileName = nameAndAgeFromOpenProfile.name !== 'Não disponível' ? String(nameAndAgeFromOpenProfile.name) : 'Não disponível';
-              lastDislikeProfileAge = nameAndAgeFromOpenProfile.age !== 'Não disponível' ? String(nameAndAgeFromOpenProfile.age) : 'Não disponível';
-              localStorage.setItem('lastDislikeProfileName', lastDislikeProfileName);
-              localStorage.setItem('lastDislikeProfileAge', lastDislikeProfileAge);
-              lastDislikeReason = nameCheck.reason;
-              lastDislikeTimestamp = new Date();
-              lastDislikeLikesCount = likesCount;
-
-              // Agora dar o dislike
-              dislikeButton.click();
-              dislikesCount++;
-              updateDislikeCounter();
-
-              console.log('Dislike registrado:', {
-                timestamp: lastDislikeTimestamp,
-                name: lastDislikeProfileName,
-                age: lastDislikeProfileAge,
-                reason: lastDislikeReason,
-                likesCount: lastDislikeLikesCount
-              });
-
-              setTimeout(() => {
-                updateLastDislikeCard();
-              }, 100);
-
-              console.log(`Dislike: ${nameCheck.reason} - ${lastDislikeProfileName}, ${lastDislikeProfileAge} anos`);
-              await new Promise((resolve) => setTimeout(resolve, interval));
-              if (isPaused) return;
-              return;
-            }
-          }
-        }
-        */
-
-        // 9. SE NÃO HOUVE FILTROS, DAR LIKE
+        // 8. SE NÃO HOUVE FILTROS, DAR LIKE
         const likeButton = findLikeButton();
         if (likeButton) {
           likeButton.click();
