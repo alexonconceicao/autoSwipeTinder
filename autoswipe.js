@@ -7,7 +7,7 @@
 // @description:pt Script de auto like e dislike com filtros, sliders e painel de controle.
 // @description:pt-BR Script de auto like e dislike no Tinder com filtros, sliders e painel visual.
 
-// @version      1.3.3
+// @version      1.7.0
 // @namespace    https://greasyfork.org/users/1416065
 // @author       Nox
 // @license      MIT
@@ -38,6 +38,25 @@
   let heightThreshold = 170; // Valor padrão em cm
   let heightCondition = 'greater'; // 'greater' para maior que, 'less' para menor que
 
+  // Configurações de limite de likes
+  let likesLimit = null; // null = desativado, número = limite ativo
+  let likesLimitEnabled = false;
+
+  // Rastreamento do último dislike
+  let lastDislikeTimestamp = null;
+  let lastDislikeName = null;
+  let lastDislikeAge = null;
+  let lastDislikeReason = null;
+  let lastDislikeLikesCount = 0;
+
+  // Nome e idade do perfil atual
+  let currentProfileName = null;
+  let currentProfileAge = null;
+
+  // Carregar nome e idade do último perfil do localStorage
+  currentProfileName = localStorage.getItem('currentProfileName');
+  currentProfileAge = localStorage.getItem('currentProfileAge');
+
   // Carregar valores armazenados no localStorage, se existirem
   interval = parseInt(localStorage.getItem('interval')) || interval;
   profileOpenWait =
@@ -47,6 +66,19 @@
   heightFilterEnabled = localStorage.getItem('heightFilterEnabled') === 'true' || false;
   heightThreshold = parseInt(localStorage.getItem('heightThreshold')) || heightThreshold;
   heightCondition = localStorage.getItem('heightCondition') || heightCondition;
+
+  // Carregar configurações de limite de likes
+  const storedLikesLimit = localStorage.getItem('likesLimit');
+  if (storedLikesLimit !== null) {
+    likesLimit = parseInt(storedLikesLimit);
+    if (isNaN(likesLimit) || likesLimit <= 0) {
+      likesLimit = null;
+    }
+  }
+  likesLimitEnabled = localStorage.getItem('likesLimitEnabled') === 'true' || false;
+
+  // Resetar contador ao carregar página (nova rodada)
+  likesCount = 0;
 
   // Criação do painel de controle
   const container = document.createElement('div');
@@ -67,6 +99,21 @@
   container.style.opacity = '0.2';
   container.style.transition = 'opacity 0.3s';
   document.body.appendChild(container);
+
+  // Carregar posição salva do localStorage, se existir
+  const savedLeft = localStorage.getItem('modalPositionLeft');
+  const savedTop = localStorage.getItem('modalPositionTop');
+  if (savedLeft !== null && savedTop !== null) {
+    const left = parseFloat(savedLeft);
+    const top = parseFloat(savedTop);
+    // Validar que as posições estão dentro dos limites da tela
+    if (!isNaN(left) && !isNaN(top) && left >= 0 && top >= 0) {
+      container.style.left = left + 'px';
+      container.style.top = top + 'px';
+      container.style.right = 'auto';
+    }
+  }
+
   container.addEventListener('mouseenter', () => {
     container.style.opacity = '1';
   });
@@ -78,14 +125,43 @@
   statsContainer.style.display = 'flex';
   statsContainer.style.justifyContent = 'space-between';
   statsContainer.style.marginBottom = '10px';
+  statsContainer.style.gap = '10px';
+
+  // Container para likes com contorno verde
+  const likeCounterContainer = document.createElement('div');
+  likeCounterContainer.style.backgroundColor = '#2a2a2a';
+  likeCounterContainer.style.padding = '10px';
+  likeCounterContainer.style.borderRadius = '8px';
+  likeCounterContainer.style.border = '2px solid #4caf50';
+  likeCounterContainer.style.flex = '1';
+  likeCounterContainer.style.display = 'flex';
+  likeCounterContainer.style.justifyContent = 'center';
+  likeCounterContainer.style.alignItems = 'center';
 
   const likeCounter = document.createElement('div');
   likeCounter.textContent = `Likes: ${likesCount}`;
-  statsContainer.appendChild(likeCounter);
+  likeCounter.style.color = '#4caf50';
+  likeCounter.style.fontWeight = 'bold';
+  likeCounterContainer.appendChild(likeCounter);
+  statsContainer.appendChild(likeCounterContainer);
+
+  // Container para dislikes com contorno vermelho
+  const dislikeCounterContainer = document.createElement('div');
+  dislikeCounterContainer.style.backgroundColor = '#2a2a2a';
+  dislikeCounterContainer.style.padding = '10px';
+  dislikeCounterContainer.style.borderRadius = '8px';
+  dislikeCounterContainer.style.border = '2px solid #f44336';
+  dislikeCounterContainer.style.flex = '1';
+  dislikeCounterContainer.style.display = 'flex';
+  dislikeCounterContainer.style.justifyContent = 'center';
+  dislikeCounterContainer.style.alignItems = 'center';
 
   const dislikeCounter = document.createElement('div');
   dislikeCounter.textContent = `Dislikes: ${dislikesCount}`;
-  statsContainer.appendChild(dislikeCounter);
+  dislikeCounter.style.color = '#f44336';
+  dislikeCounter.style.fontWeight = 'bold';
+  dislikeCounterContainer.appendChild(dislikeCounter);
+  statsContainer.appendChild(dislikeCounterContainer);
 
   container.appendChild(statsContainer);
 
@@ -119,6 +195,11 @@
   pauseButton.style.padding = '10px';
   pauseButton.style.borderRadius = '8px';
   pauseButton.style.cursor = 'pointer';
+  pauseButton.style.backgroundColor = '#f44336';
+  pauseButton.style.color = 'white';
+  pauseButton.style.border = 'none';
+  pauseButton.style.fontWeight = 'bold';
+  pauseButton.style.transition = 'background-color 0.3s';
   container.appendChild(pauseButton);
 
   const createSlider = (
@@ -162,18 +243,6 @@
     return sliderContainer;
   };
 
-  const intervalSlider = createSlider(
-    'Intervalo entre ações (segundos)',
-    100,
-    10000,
-    100,
-    interval,
-    'interval',
-    (value) => {
-      interval = value;
-    }
-  );
-  container.appendChild(intervalSlider);
 
   const profileWaitSlider = createSlider(
     'Espera ao abrir perfil (segundos)',
@@ -186,52 +255,274 @@
       profileOpenWait = value;
     }
   );
-  container.appendChild(profileWaitSlider);
+
+  // Container com contorno para espera ao abrir perfil
+  const profileWaitContainer = document.createElement('div');
+  profileWaitContainer.style.backgroundColor = '#2a2a2a';
+  profileWaitContainer.style.padding = '10px';
+  profileWaitContainer.style.borderRadius = '8px';
+  profileWaitContainer.style.border = '2px solid #2196f3';
+  profileWaitContainer.style.marginTop = '10px';
+  profileWaitContainer.style.display = 'flex';
+  profileWaitContainer.style.flexDirection = 'column';
+  profileWaitContainer.style.gap = '10px';
+  profileWaitContainer.appendChild(profileWaitSlider);
+  container.appendChild(profileWaitContainer);
+
+  const intervalSlider = createSlider(
+    'Intervalo entre ações (segundos)',
+    100,
+    10000,
+    100,
+    interval,
+    'interval',
+    (value) => {
+      interval = value;
+    }
+  );
+
+  // Container com contorno para intervalo entre ações
+  const intervalContainer = document.createElement('div');
+  intervalContainer.style.backgroundColor = '#2a2a2a';
+  intervalContainer.style.padding = '10px';
+  intervalContainer.style.borderRadius = '8px';
+  intervalContainer.style.border = '2px solid #2196f3';
+  intervalContainer.style.marginTop = '10px';
+  intervalContainer.style.display = 'flex';
+  intervalContainer.style.flexDirection = 'column';
+  intervalContainer.style.gap = '10px';
+  intervalContainer.appendChild(intervalSlider);
+  container.appendChild(intervalContainer);
+
+
+
+  // Seção de limite de likes
+  const likesLimitContainer = document.createElement('div');
+  likesLimitContainer.style.backgroundColor = '#2a2a2a';
+  likesLimitContainer.style.padding = '10px';
+  likesLimitContainer.style.borderRadius = '8px';
+  likesLimitContainer.style.border = '2px solid #ffcc00';
+  likesLimitContainer.style.marginTop = '10px';
+  likesLimitContainer.style.display = 'flex';
+  likesLimitContainer.style.flexDirection = 'column';
+  likesLimitContainer.style.gap = '10px';
+  container.appendChild(likesLimitContainer);
+
+  const likesLimitTitle = document.createElement('div');
+  likesLimitTitle.textContent = 'Limitador de Likes';
+  likesLimitTitle.style.fontWeight = 'bold';
+  likesLimitTitle.style.color = '#ffcc00';
+  likesLimitTitle.style.marginBottom = '5px';
+  likesLimitContainer.appendChild(likesLimitTitle);
+
+  // Container para checkbox e input na mesma linha
+  const likesLimitRow = document.createElement('div');
+  likesLimitRow.style.display = 'flex';
+  likesLimitRow.style.alignItems = 'center';
+  likesLimitRow.style.gap = '10px';
+  likesLimitContainer.appendChild(likesLimitRow);
+
+  const enableLikesLimitCheckbox = document.createElement('input');
+  enableLikesLimitCheckbox.type = 'checkbox';
+  enableLikesLimitCheckbox.checked = likesLimitEnabled;
+
+  // Texto dinâmico para o checkbox de limitador de likes
+  const likesLimitStatusText = document.createElement('span');
+  likesLimitStatusText.textContent = likesLimitEnabled ? 'Ativado' : 'Desativado';
+  likesLimitStatusText.style.color = likesLimitEnabled ? '#4caf50' : '#f44336';
+  likesLimitStatusText.style.fontWeight = 'bold';
+  likesLimitStatusText.style.marginLeft = '5px';
+
+  const likesLimitInput = document.createElement('input');
+  likesLimitInput.type = 'number';
+  likesLimitInput.min = '1';
+  likesLimitInput.step = '1';
+  likesLimitInput.value = (likesLimit !== null && likesLimit > 0) ? likesLimit : '';
+  likesLimitInput.style.padding = '5px';
+  likesLimitInput.style.borderRadius = '5px';
+  likesLimitInput.style.border = '2px solid #ffcc00';
+  likesLimitInput.style.boxSizing = 'border-box';
+  likesLimitInput.style.width = '80px';
+  likesLimitInput.placeholder = 'Limite';
+
+  likesLimitRow.appendChild(enableLikesLimitCheckbox);
+  likesLimitRow.appendChild(likesLimitStatusText);
+  likesLimitRow.appendChild(likesLimitInput);
+
+  // Botão para resetar contador
+  const resetCounterButton = document.createElement('button');
+  resetCounterButton.textContent = 'Resetar Contador';
+  resetCounterButton.style.padding = '8px';
+  resetCounterButton.style.borderRadius = '5px';
+  resetCounterButton.style.cursor = 'pointer';
+  resetCounterButton.style.backgroundColor = '#4a4a4a';
+  resetCounterButton.style.color = 'white';
+  resetCounterButton.style.border = 'none';
+  likesLimitContainer.appendChild(resetCounterButton);
+
+  // Event listeners para limite de likes
+  enableLikesLimitCheckbox.addEventListener('change', () => {
+    likesLimitEnabled = enableLikesLimitCheckbox.checked;
+    localStorage.setItem('likesLimitEnabled', likesLimitEnabled);
+    likesLimitInput.disabled = !likesLimitEnabled;
+
+    // Atualizar texto dinâmico
+    likesLimitStatusText.textContent = likesLimitEnabled ? 'Ativado' : 'Desativado';
+    likesLimitStatusText.style.color = likesLimitEnabled ? '#4caf50' : '#f44336';
+
+    if (likesLimitEnabled) {
+      if (likesLimitInput.value) {
+        likesLimit = parseInt(likesLimitInput.value);
+        if (!isNaN(likesLimit) && likesLimit > 0) {
+          localStorage.setItem('likesLimit', likesLimit);
+        } else {
+          likesLimit = null;
+        }
+      } else if (likesLimit !== null) {
+        // Manter o limite já carregado se o input estiver vazio
+        localStorage.setItem('likesLimit', likesLimit);
+      }
+    } else {
+      // Não remover o limite do localStorage, apenas desativar
+      // Isso permite reativar com o mesmo valor
+    }
+    updateLikeCounter();
+  });
+
+  likesLimitInput.addEventListener('input', () => {
+    const value = parseInt(likesLimitInput.value);
+    if (!isNaN(value) && value > 0) {
+      likesLimit = value;
+      if (likesLimitEnabled) {
+        localStorage.setItem('likesLimit', likesLimit);
+      }
+    } else {
+      likesLimit = null;
+      if (likesLimitEnabled) {
+        localStorage.removeItem('likesLimit');
+      }
+    }
+    updateLikeCounter();
+  });
+
+  resetCounterButton.addEventListener('click', () => {
+    likesCount = 0;
+    updateLikeCounter();
+    console.log('Contador resetado');
+  });
+
+  // Inicializar estado do input
+  likesLimitInput.disabled = !likesLimitEnabled;
 
   // Seção de filtro por altura
   const heightFilterContainer = document.createElement('div');
   heightFilterContainer.style.backgroundColor = '#2a2a2a';
   heightFilterContainer.style.padding = '10px';
   heightFilterContainer.style.borderRadius = '8px';
+  heightFilterContainer.style.border = '2px solid #ffcc00';
   heightFilterContainer.style.marginTop = '10px';
+  heightFilterContainer.style.display = 'flex';
+  heightFilterContainer.style.flexDirection = 'column';
+  heightFilterContainer.style.gap = '10px';
   container.appendChild(heightFilterContainer);
 
-  const heightFilterTitle = document.createElement('div');
-  heightFilterTitle.textContent = 'Filtro por Altura';
-  heightFilterTitle.style.fontWeight = 'bold';
-  heightFilterTitle.style.marginBottom = '10px';
-  heightFilterTitle.style.color = '#ffcc00';
-  heightFilterContainer.appendChild(heightFilterTitle);
+  // Container para título e tooltip
+  const heightFilterTitleRow = document.createElement('div');
+  heightFilterTitleRow.style.display = 'flex';
+  heightFilterTitleRow.style.alignItems = 'center';
+  heightFilterTitleRow.style.gap = '8px';
+  heightFilterTitleRow.style.marginBottom = '5px';
 
-  // Checkbox para ativar/desativar filtro
-  const enableHeightFilterContainer = document.createElement('div');
-  enableHeightFilterContainer.style.display = 'flex';
-  enableHeightFilterContainer.style.alignItems = 'center';
-  enableHeightFilterContainer.style.marginBottom = '10px';
+  const heightFilterTitle = document.createElement('div');
+  heightFilterTitle.textContent = 'Limitador de Altura';
+  heightFilterTitle.style.fontWeight = 'bold';
+  heightFilterTitle.style.color = '#ffcc00';
+  heightFilterTitleRow.appendChild(heightFilterTitle);
+
+  // Ícone de interrogação para tooltip
+  const tooltipIcon = document.createElement('div');
+  tooltipIcon.textContent = '?';
+  tooltipIcon.style.width = '20px';
+  tooltipIcon.style.height = '20px';
+  tooltipIcon.style.borderRadius = '50%';
+  tooltipIcon.style.backgroundColor = '#ffcc00';
+  tooltipIcon.style.color = '#000';
+  tooltipIcon.style.display = 'flex';
+  tooltipIcon.style.alignItems = 'center';
+  tooltipIcon.style.justifyContent = 'center';
+  tooltipIcon.style.fontSize = '12px';
+  tooltipIcon.style.fontWeight = 'bold';
+  tooltipIcon.style.cursor = 'help';
+  tooltipIcon.style.position = 'relative';
+
+  // Tooltip customizado
+  const tooltip = document.createElement('div');
+  tooltip.textContent = 'Como usar: Ative o limitador e defina a altura em cm. Escolha "Maior que" para dar dislike em pessoas acima da altura, ou "Menor que" para abaixo. Exemplo: Altura 170cm + "Maior que" = dislike em pessoas acima de 170cm.';
+  tooltip.style.position = 'absolute';
+  tooltip.style.bottom = '100%';
+  tooltip.style.left = '50%';
+  tooltip.style.transform = 'translateX(-50%)';
+  tooltip.style.width = '250px';
+  tooltip.style.padding = '10px';
+  tooltip.style.backgroundColor = 'rgba(0, 0, 0, 0.95)';
+  tooltip.style.color = 'white';
+  tooltip.style.borderRadius = '8px';
+  tooltip.style.border = '2px solid #ffcc00';
+  tooltip.style.fontSize = '12px';
+  tooltip.style.lineHeight = '1.4';
+  tooltip.style.zIndex = '10001';
+  tooltip.style.opacity = '0';
+  tooltip.style.visibility = 'hidden';
+  tooltip.style.transition = 'opacity 0.3s, visibility 0.3s';
+  tooltip.style.marginBottom = '5px';
+  tooltip.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3)';
+
+  // Seta do tooltip
+  const tooltipArrow = document.createElement('div');
+  tooltipArrow.style.position = 'absolute';
+  tooltipArrow.style.bottom = '-8px';
+  tooltipArrow.style.left = '50%';
+  tooltipArrow.style.transform = 'translateX(-50%)';
+  tooltipArrow.style.width = '0';
+  tooltipArrow.style.height = '0';
+  tooltipArrow.style.borderLeft = '8px solid transparent';
+  tooltipArrow.style.borderRight = '8px solid transparent';
+  tooltipArrow.style.borderTop = '8px solid #ffcc00';
+  tooltip.appendChild(tooltipArrow);
+
+  tooltipIcon.appendChild(tooltip);
+
+  // Event listeners para mostrar/esconder tooltip
+  tooltipIcon.addEventListener('mouseenter', () => {
+    tooltip.style.opacity = '1';
+    tooltip.style.visibility = 'visible';
+  });
+
+  tooltipIcon.addEventListener('mouseleave', () => {
+    tooltip.style.opacity = '0';
+    tooltip.style.visibility = 'hidden';
+  });
+
+  heightFilterTitleRow.appendChild(tooltipIcon);
+  heightFilterContainer.appendChild(heightFilterTitleRow);
+
+  // Container para checkbox, input e select na mesma linha
+  const heightFilterRow = document.createElement('div');
+  heightFilterRow.style.display = 'flex';
+  heightFilterRow.style.alignItems = 'center';
+  heightFilterRow.style.gap = '10px';
+  heightFilterContainer.appendChild(heightFilterRow);
 
   const enableHeightFilterCheckbox = document.createElement('input');
   enableHeightFilterCheckbox.type = 'checkbox';
   enableHeightFilterCheckbox.checked = heightFilterEnabled;
-  enableHeightFilterCheckbox.style.marginRight = '8px';
 
-  const enableHeightFilterLabel = document.createElement('label');
-  enableHeightFilterLabel.textContent = 'Ativar filtro por altura';
-  enableHeightFilterLabel.style.cursor = 'pointer';
-
-  enableHeightFilterContainer.appendChild(enableHeightFilterCheckbox);
-  enableHeightFilterContainer.appendChild(enableHeightFilterLabel);
-  heightFilterContainer.appendChild(enableHeightFilterContainer);
-
-  // Input para valor da altura
-  const heightInputContainer = document.createElement('div');
-  heightInputContainer.style.display = 'flex';
-  heightInputContainer.style.flexDirection = 'column';
-  heightInputContainer.style.marginBottom = '10px';
-
-  const heightInputLabel = document.createElement('label');
-  heightInputLabel.textContent = 'Altura limite (cm):';
-  heightInputLabel.style.marginBottom = '5px';
-  heightInputContainer.appendChild(heightInputLabel);
+  // Texto dinâmico para o checkbox de limitador de altura
+  const heightFilterStatusText = document.createElement('span');
+  heightFilterStatusText.textContent = heightFilterEnabled ? 'Ativado' : 'Desativado';
+  heightFilterStatusText.style.color = heightFilterEnabled ? '#4caf50' : '#f44336';
+  heightFilterStatusText.style.fontWeight = 'bold';
+  heightFilterStatusText.style.marginLeft = '5px';
 
   const heightInput = document.createElement('input');
   heightInput.type = 'number';
@@ -241,26 +532,15 @@
   heightInput.value = heightThreshold;
   heightInput.style.padding = '5px';
   heightInput.style.borderRadius = '5px';
-  heightInput.style.width = '100%';
-  heightInputContainer.appendChild(heightInput);
-
-  heightFilterContainer.appendChild(heightInputContainer);
-
-  // Dropdown para condição
-  const heightConditionContainer = document.createElement('div');
-  heightConditionContainer.style.display = 'flex';
-  heightConditionContainer.style.flexDirection = 'column';
-  heightConditionContainer.style.marginBottom = '10px';
-
-  const heightConditionLabel = document.createElement('label');
-  heightConditionLabel.textContent = 'Condição:';
-  heightConditionLabel.style.marginBottom = '5px';
-  heightConditionContainer.appendChild(heightConditionLabel);
+  heightInput.style.border = '2px solid #ffcc00';
+  heightInput.style.boxSizing = 'border-box';
+  heightInput.style.width = '80px';
+  heightInput.placeholder = 'Altura (cm)';
 
   const heightConditionSelect = document.createElement('select');
   heightConditionSelect.style.padding = '5px';
   heightConditionSelect.style.borderRadius = '5px';
-  heightConditionSelect.style.width = '100%';
+  heightConditionSelect.style.width = '100px';
 
   const optionGreater = document.createElement('option');
   optionGreater.value = 'greater';
@@ -274,13 +554,19 @@
   heightConditionSelect.appendChild(optionLess);
   heightConditionSelect.value = heightCondition;
 
-  heightConditionContainer.appendChild(heightConditionSelect);
-  heightFilterContainer.appendChild(heightConditionContainer);
+  heightFilterRow.appendChild(enableHeightFilterCheckbox);
+  heightFilterRow.appendChild(heightFilterStatusText);
+  heightFilterRow.appendChild(heightInput);
+  heightFilterRow.appendChild(heightConditionSelect);
 
   // Event listeners para filtro de altura
   enableHeightFilterCheckbox.addEventListener('change', () => {
     heightFilterEnabled = enableHeightFilterCheckbox.checked;
     localStorage.setItem('heightFilterEnabled', heightFilterEnabled);
+
+    // Atualizar texto dinâmico
+    heightFilterStatusText.textContent = heightFilterEnabled ? 'Ativado' : 'Desativado';
+    heightFilterStatusText.style.color = heightFilterEnabled ? '#4caf50' : '#f44336';
 
     // Ativar/desativar inputs
     heightInput.disabled = !heightFilterEnabled;
@@ -304,6 +590,12 @@
   pauseButton.addEventListener('click', () => {
     isPaused = !isPaused;
     pauseButton.textContent = isPaused ? 'Continuar' : 'Pausar';
+    // Mudar cor dinamicamente: verde quando ativo, vermelho quando pausado
+    if (isPaused) {
+      pauseButton.style.backgroundColor = '#4caf50';
+    } else {
+      pauseButton.style.backgroundColor = '#f44336';
+    }
   });
 
   // Criação do contêiner de informações do perfil
@@ -344,7 +636,6 @@
     );
 
     if (!profileContainer) {
-      console.log('Perfil não encontrado.');
       return null;
     }
 
@@ -364,8 +655,6 @@
             const pathD = svgPath.getAttribute('d') || '';
             const text = textDiv.textContent.trim();
 
-            console.log(`Item ${index}: Path = ${pathD.substring(0, 30)}..., Text = "${text}"`);
-
             // Identificar pelo caminho do SVG
             if (pathD.includes('M12.301')) {
               // Ícone de localização/distância
@@ -375,7 +664,6 @@
             } else if (pathD.includes('M16.95')) {
               // Ícone de altura (o que você mostrou)
               profileInfo.height = text;
-              console.log(`Altura encontrada via SVG: ${text}`);
             } else if (pathD.includes('M16.995')) {
               // Ícone de profissão
               profileInfo.profession = text;
@@ -401,7 +689,6 @@
           const heightMatch = text.match(/(\d+)\s*cm/);
           if (heightMatch) {
             profileInfo.height = heightMatch[0]; // "158 cm"
-            console.log(`Altura encontrada via texto "cm": ${profileInfo.height}`);
             break;
           }
         }
@@ -416,7 +703,6 @@
         // Procurar por padrões de altura
         if (text.match(/^\d+\s*cm$/)) {
           profileInfo.height = text;
-          console.log(`Altura encontrada em div: ${profileInfo.height}`);
           break;
         }
       }
@@ -430,7 +716,6 @@
         const heightMatch = parentText.match(/(\d+)\s*cm/);
         if (heightMatch) {
           profileInfo.height = heightMatch[0];
-          console.log(`Altura encontrada via texto "Altura": ${profileInfo.height}`);
           break;
         }
       }
@@ -460,8 +745,93 @@
       }
     }
 
-    console.log('Informações extraídas do perfil:', profileInfo);
     return profileInfo;
+  }
+
+  // Função para extrair nome e idade do perfil
+  function extractNameAndAge() {
+    let name = 'Não disponível';
+    let age = 'Não disponível';
+
+    // Método 1 (PRIMÁRIO): Buscar usando itemprop="name" e itemprop="age"
+    // Buscar no card principal da tela (antes de abrir o perfil)
+    // Tentar múltiplos seletores para garantir que encontre
+    const nameElement = document.querySelector('span[itemprop="name"]') ||
+                        document.querySelector('[itemprop="name"]') ||
+                        document.querySelector('span.Typs\\(display-1-strong\\)[itemprop="name"]');
+    const ageElement = document.querySelector('span[itemprop="age"]') ||
+                       document.querySelector('[itemprop="age"]') ||
+                       document.querySelector('span[itemprop="age"].As\\(b\\)');
+
+    if (nameElement) {
+      name = nameElement.textContent.trim();
+    }
+    if (ageElement) {
+      age = ageElement.textContent.trim();
+    }
+
+    // Se não encontrou no card principal, buscar no perfil aberto
+    if (name === 'Não disponível' || age === 'Não disponível') {
+      const profileContainer = document.querySelector(
+        '.Bgc\\(--color--background-sparks-profile\\)'
+      );
+
+      if (profileContainer) {
+        const profileNameElement = profileContainer.querySelector('span[itemprop="name"], [itemprop="name"]');
+        const profileAgeElement = profileContainer.querySelector('span[itemprop="age"], [itemprop="age"]');
+
+        if (profileNameElement && name === 'Não disponível') {
+          name = profileNameElement.textContent.trim();
+        }
+        if (profileAgeElement && age === 'Não disponível') {
+          age = profileAgeElement.textContent.trim();
+        }
+      }
+    }
+
+    // Método 2 (FALLBACK): Procurar por h1 ou h2 que contém nome e idade
+    if (name === 'Não disponível' || age === 'Não disponível') {
+      const profileContainer = document.querySelector(
+        '.Bgc\\(--color--background-sparks-profile\\)'
+      );
+
+      if (profileContainer) {
+        const headers = profileContainer.querySelectorAll('h1, h2');
+        for (const header of headers) {
+          const text = header.textContent.trim();
+          // Padrão comum: "Nome, Idade" ou "Nome Idade"
+          const nameAgeMatch = text.match(/^(.+?),\s*(\d+)$/);
+          if (nameAgeMatch) {
+            if (name === 'Não disponível') name = nameAgeMatch[1].trim();
+            if (age === 'Não disponível') age = nameAgeMatch[2].trim();
+            break;
+          }
+          // Padrão alternativo: "Nome Idade" (sem vírgula)
+          const nameAgeMatch2 = text.match(/^(.+?)\s+(\d+)$/);
+          if (nameAgeMatch2 && nameAgeMatch2[2].length <= 3) {
+            if (name === 'Não disponível') name = nameAgeMatch2[1].trim();
+            if (age === 'Não disponível') age = nameAgeMatch2[2].trim();
+            break;
+          }
+        }
+      }
+    }
+
+    // Método 3 (FALLBACK): Buscar no card principal usando padrões de texto
+    if (name === 'Não disponível' || age === 'Não disponível') {
+      const cardElements = document.querySelectorAll('h1, h2, [class*="card"]');
+      for (const element of cardElements) {
+        const text = element.textContent.trim();
+        const nameAgeMatch = text.match(/^(.+?),\s*(\d+)$/);
+        if (nameAgeMatch && nameAgeMatch[1].length > 1 && nameAgeMatch[1].length < 50) {
+          if (name === 'Não disponível') name = nameAgeMatch[1].trim();
+          if (age === 'Não disponível') age = nameAgeMatch[2].trim();
+          break;
+        }
+      }
+    }
+
+    return { name, age };
   }
 
   // Função para converter altura para cm (aceita "1,70 m" e "188 cm")
@@ -469,8 +839,6 @@
     if (!heightString || heightString === 'Não informado') {
       return null;
     }
-
-    console.log('Convertendo altura:', heightString);
 
     try {
       // Limpar espaços extras e converter para minúsculas
@@ -481,7 +849,6 @@
         const cmMatch = cleaned.match(/(\d+)\s*cm/);
         if (cmMatch && cmMatch[1]) {
           const result = parseInt(cmMatch[1]);
-          console.log('Convertido para cm (já em cm):', result);
           return result;
         }
       }
@@ -495,7 +862,6 @@
         if (!isNaN(meters)) {
           // Converter para cm
           const result = Math.round(meters * 100);
-          console.log('Convertido para cm (de metros):', result);
           return result;
         }
       }
@@ -507,43 +873,29 @@
         // Se o número for maior que 100, provavelmente já está em cm
         // Se for menor que 3, provavelmente está em metros
         if (num > 100) {
-          console.log('Convertido para cm (número > 100):', num);
           return num; // Já está em cm
         } else if (num < 3) {
           const result = Math.round(num * 100);
-          console.log('Convertido para cm (número < 3):', result);
           return result; // Converte metros para cm
         }
       }
 
-      console.log('Não foi possível converter altura:', heightString);
       return null;
     } catch (error) {
-      console.error('Erro ao converter altura:', error, heightString);
+      console.error('Erro ao converter altura:', error);
       return null;
     }
   }
 
   // Função para verificar filtro de altura
   function checkHeightFilter(profileHeight) {
-    console.log('=== VERIFICANDO FILTRO DE ALTURA ===');
-    console.log('Configurações:', {
-      enabled: heightFilterEnabled,
-      threshold: heightThreshold,
-      condition: heightCondition,
-      profileHeight: profileHeight
-    });
-
     if (!heightFilterEnabled || !profileHeight) {
-      console.log('Filtro desativado ou altura não informada');
       return { shouldDislike: false, reason: null };
     }
 
     const heightInCm = convertHeightToCm(profileHeight);
-    console.log('Altura convertida para cm:', heightInCm);
 
     if (heightInCm === null) {
-      console.log('Não foi possível converter altura');
       return { shouldDislike: false, reason: null };
     }
 
@@ -562,8 +914,6 @@
       }
     }
 
-    console.log('Resultado do filtro:', { shouldDislike, reason });
-    console.log('=============================');
     return { shouldDislike, reason };
   }
 
@@ -575,28 +925,49 @@
   profileInfo.textContent = 'Sobre mim: Não disponível';
   container.appendChild(profileInfo);
 
-  const forbiddenWordReason = document.createElement('div');
-  forbiddenWordReason.style.padding = '10px';
-  forbiddenWordReason.style.backgroundColor = '#8b0000';
-  forbiddenWordReason.style.color = 'white';
-  forbiddenWordReason.style.borderRadius = '8px';
-  forbiddenWordReason.style.display = 'none';
-  forbiddenWordReason.textContent = 'Motivo do deslike: Nenhum';
-  container.appendChild(forbiddenWordReason);
+  // Card de último dislike dentro do modal
+  const lastDislikeCard = document.createElement('div');
+  lastDislikeCard.id = 'autoswipe-last-dislike-card';
+  lastDislikeCard.style.width = '100%';
+  lastDislikeCard.style.backgroundColor = 'rgba(139, 0, 0, 0.95)';
+  lastDislikeCard.style.color = 'white';
+  lastDislikeCard.style.padding = '15px';
+  lastDislikeCard.style.borderRadius = '8px';
+  lastDislikeCard.style.fontFamily = 'Arial, sans-serif';
+  lastDislikeCard.style.fontSize = '13px';
+  lastDislikeCard.style.display = 'none';
+  lastDislikeCard.style.border = '2px solid #f44336';
+  lastDislikeCard.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3)';
+  lastDislikeCard.style.marginTop = '10px';
+  container.appendChild(lastDislikeCard);
 
   function updateLikeCounter() {
-    likeCounter.textContent = `Likes: ${likesCount}`;
+    if (likesLimitEnabled && likesLimit !== null) {
+      likeCounter.textContent = `Likes: ${likesCount}/${likesLimit}`;
+      // Destacar quando próximo do limite (80% ou mais)
+      if (likesCount >= likesLimit * 0.8) {
+        likeCounter.style.color = '#ffcc00';
+        if (likesCount >= likesLimit) {
+          likeCounter.style.color = '#ff6b6b';
+        }
+      } else {
+        likeCounter.style.color = '#4caf50';
+      }
+    } else {
+      likeCounter.textContent = `Likes: ${likesCount}`;
+      likeCounter.style.color = '#4caf50';
+    }
   }
 
   function updateDislikeCounter() {
     dislikeCounter.textContent = `Dislikes: ${dislikesCount}`;
+    dislikeCounter.style.color = '#f44336';
   }
 
   function updateProfileInfo(text) {
     const extractedInfo = extractProfileInfo();
 
     if (!extractedInfo) {
-      console.log('Não foi possível extrair as informações do perfil.');
       return;
     }
 
@@ -647,14 +1018,173 @@
     }
   }
 
-  function showForbiddenWordReason(reason) {
-    forbiddenWordReason.textContent = `Motivo do deslike: ${reason}`;
-    forbiddenWordReason.style.display = 'block';
+  function updateLastDislikeCard() {
+    // Garantir que o card esteja no DOM (dentro do container)
+    let card = document.getElementById('autoswipe-last-dislike-card');
+    if (!card) {
+      // Se o card não existir, usar a referência global
+      card = lastDislikeCard;
+      // Se o card não estiver no container, adicioná-lo
+      if (container && !container.contains(card)) {
+        container.appendChild(card);
+      }
+    }
 
-    // Esconder após 5 segundos
+    if (!lastDislikeTimestamp) {
+      if (card) {
+        card.style.display = 'none';
+      }
+      return;
+    }
+
+    // Log de debug
+    console.log('Atualizando card de último dislike:', {
+      timestamp: lastDislikeTimestamp,
+      name: lastDislikeName,
+      age: lastDislikeAge,
+      reason: lastDislikeReason,
+      likesCount: lastDislikeLikesCount,
+      currentLikes: likesCount
+    });
+
+    // Calcular minutos atrás
+    const now = new Date();
+    const diffMs = now - lastDislikeTimestamp;
+    const diffMinutes = Math.floor(diffMs / 60000);
+    const minutesText = diffMinutes === 0 ? 'menos de 1 minuto' :
+                        diffMinutes === 1 ? '1 minuto' :
+                        `${diffMinutes} minutos`;
+
+    // Calcular likes atrás
+    const likesSinceDislike = likesCount - lastDislikeLikesCount;
+    const likesText = likesSinceDislike === 0 ? '0 likes' :
+                      likesSinceDislike === 1 ? '1 like' :
+                      `${likesSinceDislike} likes`;
+
+    // Montar conteúdo do card
+    const nameAgeText = lastDislikeName && lastDislikeAge ?
+                       `${lastDislikeName}, ${lastDislikeAge}` :
+                       (lastDislikeName || 'Nome não disponível');
+
+    const reasonText = lastDislikeReason || 'Não especificado';
+
+    // Atualizar conteúdo do card
+    if (card) {
+      card.innerHTML = `
+        <div style="font-weight: bold; margin-bottom: 10px; color: #ffcc00; font-size: 14px;">
+          Último Dislike Registrado em:
+        </div>
+        <div style="margin-bottom: 8px; font-weight: bold; font-size: 15px;">
+          ${nameAgeText}
+        </div>
+        <div style="margin-bottom: 8px;">
+          Motivo: ${reasonText}
+        </div>
+        <div style="margin-bottom: 5px; color: #4caf50;">
+          ${likesText} atrás
+        </div>
+        <div style="color: #4caf50;">
+          ${minutesText} atrás
+        </div>
+      `;
+
+      // Garantir que o card seja exibido
+      card.style.display = 'block';
+      card.style.visibility = 'visible';
+      card.style.opacity = '1';
+
+      // Forçar reflow para garantir que o estilo seja aplicado
+      card.offsetHeight;
+
+      console.log('Card de último dislike atualizado e exibido');
+    } else {
+      console.error('Card de último dislike não encontrado no DOM');
+      // Tentar recriar o card dentro do container se não estiver no DOM
+      if (container) {
+        const newCard = document.createElement('div');
+        newCard.id = 'autoswipe-last-dislike-card';
+        newCard.style.width = '100%';
+        newCard.style.backgroundColor = 'rgba(139, 0, 0, 0.95)';
+        newCard.style.color = 'white';
+        newCard.style.padding = '15px';
+        newCard.style.borderRadius = '8px';
+        newCard.style.fontFamily = 'Arial, sans-serif';
+        newCard.style.fontSize = '13px';
+        newCard.style.border = '2px solid #f44336';
+        newCard.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3)';
+        newCard.style.marginTop = '10px';
+        container.appendChild(newCard);
+        // Atualizar novamente com o novo card
+        setTimeout(() => updateLastDislikeCard(), 50);
+      }
+    }
+  }
+
+  function showLimitReachedPopup() {
+    // Criar popup
+    const popup = document.createElement('div');
+    popup.style.position = 'fixed';
+    popup.style.top = '50%';
+    popup.style.left = '50%';
+    popup.style.transform = 'translate(-50%, -50%)';
+    popup.style.zIndex = '10000';
+    popup.style.backgroundColor = 'rgba(0, 0, 0, 0.95)';
+    popup.style.color = 'white';
+    popup.style.padding = '30px';
+    popup.style.borderRadius = '15px';
+    popup.style.border = '3px solid #ffcc00';
+    popup.style.boxShadow = '0 0 30px rgba(255, 204, 0, 0.5)';
+    popup.style.fontFamily = 'Arial, sans-serif';
+    popup.style.textAlign = 'center';
+    popup.style.minWidth = '300px';
+    popup.style.maxWidth = '500px';
+
+    const title = document.createElement('div');
+    title.textContent = 'Limite de Likes Atingido!';
+    title.style.fontSize = '24px';
+    title.style.fontWeight = 'bold';
+    title.style.color = '#ffcc00';
+    title.style.marginBottom = '20px';
+
+    const message = document.createElement('div');
+    message.textContent = `O sistema parou pois atingiu o limite de ${likesLimit} likes.`;
+    message.style.fontSize = '16px';
+    message.style.marginBottom = '20px';
+    message.style.lineHeight = '1.5';
+
+    const info = document.createElement('div');
+    info.textContent = `Você pode resetar o contador de likes clicando no botão "Resetar Contador" abaixo.`;
+    info.style.fontSize = '14px';
+    info.style.color = '#cccccc';
+    info.style.marginBottom = '25px';
+
+    const closeButton = document.createElement('button');
+    closeButton.textContent = 'OK';
+    closeButton.style.padding = '12px 30px';
+    closeButton.style.borderRadius = '8px';
+    closeButton.style.backgroundColor = '#ffcc00';
+    closeButton.style.color = 'black';
+    closeButton.style.border = 'none';
+    closeButton.style.cursor = 'pointer';
+    closeButton.style.fontSize = '16px';
+    closeButton.style.fontWeight = 'bold';
+    closeButton.addEventListener('click', () => {
+      document.body.removeChild(popup);
+    });
+
+    popup.appendChild(title);
+    popup.appendChild(message);
+    popup.appendChild(info);
+    popup.appendChild(closeButton);
+
+    document.body.appendChild(popup);
+
+    // Fechar automaticamente após 10 segundos
     setTimeout(() => {
-      forbiddenWordReason.style.display = 'none';
-    }, 5000);
+      if (document.body.contains(popup)) {
+        document.body.removeChild(popup);
+      }
+    }, 10000);
   }
 
   function findLikeButton() {
@@ -682,7 +1212,6 @@
     for (const selector of selectors) {
       const element = document.querySelector(selector);
       if (element) {
-        console.log('Perfil encontrado com seletor:', selector);
         return element;
       }
     }
@@ -692,7 +1221,6 @@
     const profileSpan = spans.find(span => span.textContent.includes('Abrir perfil'));
 
     if (profileSpan) {
-      console.log('Perfil encontrado pelo texto do span');
       // Subir até o elemento pai que é o div clicável
       let parent = profileSpan.parentElement;
       while (parent && !parent.classList.contains('Sq(28px)')) {
@@ -701,7 +1229,6 @@
       return parent;
     }
 
-    console.log('Botão de abrir perfil não encontrado');
     return null;
   }
 
@@ -739,30 +1266,69 @@
       }
     }
 
-    console.log('Texto "Sobre mim" não encontrado');
     return 'Não disponível';
   }
 
   async function autoAction() {
     if (isPaused) return;
 
-    console.log('=== INICIANDO AÇÃO ===');
+    // VERIFICAR LIMITE DE LIKES ANTES DE ABRIR PERFIL
+    if (likesLimitEnabled && likesLimit !== null && likesCount >= likesLimit) {
+      isPaused = true;
+      pauseButton.textContent = 'Continuar';
+      pauseButton.style.backgroundColor = '#4caf50';
+      showLimitReachedPopup();
+      console.log(`Limite de likes atingido: ${likesCount}/${likesLimit}`);
+      return;
+    }
 
     const profileButton = findProfileButton();
+
+    // Capturar nome e idade do card principal ANTES de abrir o perfil (apenas se houver perfil)
+    if (profileButton) {
+      try {
+        const nameAndAge = extractNameAndAge();
+        if (nameAndAge && nameAndAge.name !== 'Não disponível') {
+          currentProfileName = nameAndAge.name;
+          localStorage.setItem('currentProfileName', currentProfileName);
+        }
+        if (nameAndAge && nameAndAge.age !== 'Não disponível') {
+          currentProfileAge = nameAndAge.age;
+          localStorage.setItem('currentProfileAge', currentProfileAge);
+        }
+      } catch (error) {
+        console.error('Erro ao capturar nome e idade:', error);
+      }
+    }
 
     if (profileButton) {
       try {
         // 1. Clicar para abrir o perfil
         profileButton.click();
-        console.log('Botão de abrir perfil clicado.');
 
         // 2. Esperar o perfil carregar
         await new Promise((resolve) => setTimeout(resolve, profileOpenWait));
         if (isPaused) return;
 
-        // 3. Extrair informações do perfil
+        // 3. Se não capturou nome/idade antes, tentar capturar agora do perfil aberto
+        if (!currentProfileName || !currentProfileAge || currentProfileName === 'Não disponível' || currentProfileAge === 'Não disponível') {
+          try {
+            const nameAndAgeFromProfile = extractNameAndAge();
+            if (nameAndAgeFromProfile && nameAndAgeFromProfile.name !== 'Não disponível') {
+              currentProfileName = nameAndAgeFromProfile.name;
+              localStorage.setItem('currentProfileName', currentProfileName);
+            }
+            if (nameAndAgeFromProfile && nameAndAgeFromProfile.age !== 'Não disponível') {
+              currentProfileAge = nameAndAgeFromProfile.age;
+              localStorage.setItem('currentProfileAge', currentProfileAge);
+            }
+          } catch (error) {
+            console.error('Erro ao capturar nome e idade do perfil:', error);
+          }
+        }
+
+        // 4. Extrair informações do perfil
         const aboutText = findProfileInfo();
-        console.log(`Sobre mim encontrado: ${aboutText}`);
 
         // 4. Atualizar informações no painel
         updateProfileInfo(aboutText);
@@ -778,30 +1344,42 @@
             .map((element) => element.textContent.trim())
             .filter((text) => text.length > 0)
             .join('\n');
-          console.log('Texto do perfil extraído (primeiros 500 chars):', profileText.substring(0, 500));
         }
 
         const profileInfo = extractProfileInfo();
-        console.log('Informações detalhadas do perfil:', profileInfo);
 
         // 6. VERIFICAR PALAVRAS PROIBIDAS
-        console.log('Verificando palavras proibidas...');
-        console.log('Palavras proibidas atuais:', forbiddenWords);
-        console.log('Texto do perfil contém palavras proibidas?');
-
         let forbiddenWordFound = false;
         for (const word of forbiddenWords) {
           if (profileText.toLowerCase().includes(word.toLowerCase())) {
-            console.log(`PALAVRA PROIBIDA ENCONTRADA: "${word}"`);
             forbiddenWordFound = true;
             const dislikeButton = findDislikeButton();
             if (dislikeButton) {
-              console.log('Dando dislike por palavra proibida...');
               dislikeButton.click();
               dislikesCount++;
               updateDislikeCounter();
-              showForbiddenWordReason(`Palavra proibida: "${word}"`);
-              console.log(`Deslike dado! Motivo: ${word}`);
+
+              // Salvar informações do último dislike usando nome e idade já capturados
+              lastDislikeTimestamp = new Date();
+              lastDislikeName = currentProfileName || 'Não disponível';
+              lastDislikeAge = currentProfileAge || 'Não disponível';
+              lastDislikeReason = `Palavra proibida: "${word}"`;
+              lastDislikeLikesCount = likesCount;
+
+              console.log('Dislike registrado:', {
+                timestamp: lastDislikeTimestamp,
+                name: lastDislikeName,
+                age: lastDislikeAge,
+                reason: lastDislikeReason,
+                likesCount: lastDislikeLikesCount
+              });
+
+              // Atualizar card de último dislike (com pequeno delay para garantir DOM)
+              setTimeout(() => {
+                updateLastDislikeCard();
+              }, 100);
+
+              console.log(`Dislike: ${word} - ${lastDislikeName}, ${lastDislikeAge} anos`);
               // Esperar antes de continuar
               await new Promise((resolve) => setTimeout(resolve, interval));
               if (isPaused) return;
@@ -810,85 +1388,83 @@
           }
         }
 
-        if (!forbiddenWordFound) {
-          console.log('Nenhuma palavra proibida encontrada');
-        }
-
         // 7. VERIFICAR FILTRO DE ALTURA
         if (profileInfo && profileInfo.height) {
-          console.log(`=== VERIFICANDO FILTRO DE ALTURA ===`);
-          console.log(`Altura encontrada: "${profileInfo.height}"`);
-          console.log(`Filtro ativado: ${heightFilterEnabled}`);
-          console.log(`Condição: ${heightCondition === 'greater' ? 'Maior que' : 'Menor que'} ${heightThreshold}cm`);
-
           const heightCheck = checkHeightFilter(profileInfo.height);
 
           if (heightCheck.shouldDislike) {
-            console.log(`❌ ALTURA FILTRADA! Motivo: ${heightCheck.reason}`);
-            console.log(`=== FIM VERIFICAÇÃO ALTURA ===`);
-
             const dislikeButton = findDislikeButton();
             if (dislikeButton) {
               dislikeButton.click();
               dislikesCount++;
               updateDislikeCounter();
-              showForbiddenWordReason(heightCheck.reason);
-              console.log(`Deslike dado! Motivo: ${heightCheck.reason}`);
+
+              // Salvar informações do último dislike usando nome e idade já capturados
+              lastDislikeTimestamp = new Date();
+              lastDislikeName = currentProfileName || 'Não disponível';
+              lastDislikeAge = currentProfileAge || 'Não disponível';
+              lastDislikeReason = heightCheck.reason;
+              lastDislikeLikesCount = likesCount;
+
+              console.log('Dislike registrado:', {
+                timestamp: lastDislikeTimestamp,
+                name: lastDislikeName,
+                age: lastDislikeAge,
+                reason: lastDislikeReason,
+                likesCount: lastDislikeLikesCount
+              });
+
+              // Atualizar card de último dislike (com pequeno delay para garantir DOM)
+              setTimeout(() => {
+                updateLastDislikeCard();
+              }, 100);
+
+              console.log(`Dislike: ${heightCheck.reason} - ${lastDislikeName}, ${lastDislikeAge} anos`);
               const delay = interval;
               await new Promise((resolve) => setTimeout(resolve, delay));
               if (isPaused) return;
               return;
             }
-          } else {
-            console.log(`✅ Altura não filtrada: ${profileInfo.height}`);
-            console.log(`=== FIM VERIFICAÇÃO ALTURA ===`);
           }
-        } else {
-          console.log(`⚠️ Altura não encontrada no perfil`);
         }
 
         // 8. SE NÃO HOUVE FILTROS, DAR LIKE
-        console.log('Nenhum filtro aplicado, dando like...');
         const likeButton = findLikeButton();
         if (likeButton) {
           likeButton.click();
           likesCount++;
           updateLikeCounter();
-          console.log(`Like dado! Total: ${likesCount}`);
+          console.log(`Like: ${likesCount}${likesLimitEnabled && likesLimit !== null ? `/${likesLimit}` : ''}`);
         }
 
-        // 9. Esperar o intervalo antes de próxima ação
+        // 10. Esperar o intervalo antes de próxima ação
         await new Promise((resolve) => setTimeout(resolve, interval));
 
       } catch (error) {
         console.error('Erro ao processar perfil:', error);
       }
     } else {
-      console.log('Botão de perfil não encontrado, pulando...');
       // Tentar like mesmo sem abrir perfil (se configurado)
       const likeButton = findLikeButton();
       if (likeButton) {
         likeButton.click();
         likesCount++;
         updateLikeCounter();
-        console.log(`Like dado sem abrir perfil! Total: ${likesCount}`);
+        console.log(`Like: ${likesCount}${likesLimitEnabled && likesLimit !== null ? `/${likesLimit}` : ''}`);
       }
       await new Promise((resolve) => setTimeout(resolve, interval));
     }
-
-    console.log('=== AÇÃO FINALIZADA ===\n');
   }
 
   async function main() {
-    console.log('Script Auto Liker iniciado!');
-    console.log('Configurações:', {
-      interval: interval,
-      profileOpenWait: profileOpenWait,
-      forbiddenWords: forbiddenWords,
-      heightFilterEnabled: heightFilterEnabled,
-      heightThreshold: heightThreshold,
-      heightCondition: heightCondition
-    });
+    console.log('AutoSwipe iniciado');
+
+    // Atualizar card de último dislike a cada 10 segundos
+    setInterval(() => {
+      if (lastDislikeTimestamp) {
+        updateLastDislikeCard();
+      }
+    }, 10000);
 
     while (true) {
       if (!isPaused) {
@@ -920,6 +1496,12 @@
   });
 
   document.addEventListener('mouseup', function () {
+    if (isDragging) {
+      // Salvar posição atual do modal no localStorage
+      const rect = container.getBoundingClientRect();
+      localStorage.setItem('modalPositionLeft', rect.left.toString());
+      localStorage.setItem('modalPositionTop', rect.top.toString());
+    }
     isDragging = false;
     container.style.cursor = 'default';
   });

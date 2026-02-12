@@ -1,0 +1,18 @@
+# Regras do Cursor para AutoSwipe Tinder
+
+## Atualização de Versão
+- **SEMPRE** atualizar o número da versão no cabeçalho do arquivo `autoswipe.js` ao finalizar um projeto completo e testado
+- Seguir versionamento semântico (MAJOR.MINOR.PATCH):
+  - MAJOR: mudanças incompatíveis ou grandes refatorações
+  - MINOR: novas funcionalidades compatíveis
+  - PATCH: correções de bugs ou pequenas melhorias
+- A versão está localizada na linha 10 do arquivo: `// @version      X.X.X`
+- Incrementar a versão antes de considerar o projeto como finalizado
+
+## Checklist de Finalização
+Antes de marcar um projeto como completo:
+1. ✅ Código testado e funcionando
+2. ✅ Sem erros de lint
+3. ✅ Versão atualizada no arquivo
+4. ✅ Funcionalidades documentadas (se necessário)
+
