@@ -7,7 +7,7 @@
 // @description:pt Script de auto like e dislike com filtros, sliders e painel de controle.
 // @description:pt-BR Script de auto like e dislike no Tinder com filtros, sliders e painel visual.
 
-// @version      1.8.0
+// @version      1.10.0
 // @namespace    https://greasyfork.org/users/1416065
 // @author       Nox
 // @license      MIT
@@ -53,6 +53,10 @@
   let currentProfileName = null;
   let currentProfileAge = null;
 
+  // Última extração do perfil (para reaplicar idioma sem re-extrair do DOM)
+  let lastExtractedInfo = null;
+  let lastAboutMeText = null;
+
   // Carregar nome e idade do último perfil do localStorage
   currentProfileName = localStorage.getItem('currentProfileName');
   currentProfileAge = localStorage.getItem('currentProfileAge');
@@ -81,8 +85,125 @@
   }
   likesLimitEnabled = localStorage.getItem('likesLimitEnabled') === 'true' || false;
 
+  // Desbloquear fotos na seção "Likes" (unblur)
+  let unblurLikesEnabled = localStorage.getItem('unblurLikesEnabled') === 'true' || false;
+
+  // Carregar estado Pausar/Continuar
+  isPaused = localStorage.getItem('autoswipePaused') === 'true';
+
   // Resetar contador ao carregar página (nova rodada)
   likesCount = 0;
+
+  // Idioma da interface (pt/en) e traduções
+  let uiLang = localStorage.getItem('autoswipeLang') || 'pt';
+  const T = {
+    pt: {
+      likes: 'Likes',
+      dislikes: 'Dislikes',
+      likesFormat: 'Likes: {0}',
+      likesLimitFormat: 'Likes: {0}/{1}',
+      dislikesFormat: 'Dislikes: {0}',
+      forbiddenWordsLabel: 'Palavras proibidas (separadas por vírgula)',
+      pause: 'Pausar',
+      continue: 'Continuar',
+      profileWaitLabel: 'Espera ao abrir perfil (segundos)',
+      intervalLabel: 'Intervalo entre ações (segundos)',
+      likesLimitTitle: 'Limitador de Likes',
+      enabled: 'Ativado',
+      disabled: 'Desativado',
+      resetCounter: 'Resetar Contador',
+      limitPlaceholder: 'Limite',
+      heightFilterTitle: 'Limitador de Altura',
+      heightTooltip: 'Como usar: Ative o limitador e defina a altura em cm. Escolha "Maior que" para dar dislike em pessoas acima da altura, ou "Menor que" para abaixo. Exemplo: Altura 170cm + "Maior que" = dislike em pessoas acima de 170cm.',
+      greaterThan: 'Maior que',
+      lessThan: 'Menor que',
+      heightPlaceholder: 'Altura (cm)',
+      name: 'Nome',
+      age: 'Idade',
+      nameAgeFormat: 'Nome: {0}, Idade: {1}',
+      aboutMe: 'Sobre mim',
+      notAvailable: 'Não disponível',
+      noInfoExtracted: 'Nenhuma informação extraída',
+      distance: 'Distância',
+      height: 'Altura',
+      profession: 'Profissão',
+      pronouns: 'Pronomes',
+      languages: 'Idiomas',
+      lastDislikeTitle: 'Último Dislike Registrado em:',
+      reason: 'Motivo',
+      nameNotAvailable: 'Nome não disponível',
+      notSpecified: 'Não especificado',
+      lessThanMinute: 'menos de 1 minuto',
+      minuteAgo: '1 minuto',
+      minutesAgo: '{0} minutos',
+      likeAgo: '1 like',
+      likesAgo: '{0} likes',
+      ago: 'atrás',
+      limitReachedTitle: 'Limite de Likes Atingido!',
+      limitReachedMessage: 'O sistema parou pois atingiu o limite de {0} likes.',
+      limitReachedInfo: 'Você pode resetar o contador de likes clicando no botão "Resetar Contador" abaixo.',
+      ok: 'OK',
+      unblurLikesLabel: 'Desbloquear fotos em Likes'
+    },
+    en: {
+      likes: 'Likes',
+      dislikes: 'Dislikes',
+      likesFormat: 'Likes: {0}',
+      likesLimitFormat: 'Likes: {0}/{1}',
+      dislikesFormat: 'Dislikes: {0}',
+      forbiddenWordsLabel: 'Forbidden words (comma separated)',
+      pause: 'Pause',
+      continue: 'Continue',
+      profileWaitLabel: 'Wait when opening profile (seconds)',
+      intervalLabel: 'Interval between actions (seconds)',
+      likesLimitTitle: 'Likes limiter',
+      enabled: 'Enabled',
+      disabled: 'Disabled',
+      resetCounter: 'Reset counter',
+      limitPlaceholder: 'Limit',
+      heightFilterTitle: 'Height limiter',
+      heightTooltip: 'How to use: Enable the limiter and set height in cm. Choose "Greater than" to dislike people above that height, or "Less than" for below. Example: Height 170cm + "Greater than" = dislike people above 170cm.',
+      greaterThan: 'Greater than',
+      lessThan: 'Less than',
+      heightPlaceholder: 'Height (cm)',
+      name: 'Name',
+      age: 'Age',
+      nameAgeFormat: 'Name: {0}, Age: {1}',
+      aboutMe: 'About me',
+      notAvailable: 'Not available',
+      noInfoExtracted: 'No information extracted',
+      distance: 'Distance',
+      height: 'Height',
+      profession: 'Profession',
+      pronouns: 'Pronouns',
+      languages: 'Languages',
+      lastDislikeTitle: 'Last dislike recorded at:',
+      reason: 'Reason',
+      nameNotAvailable: 'Name not available',
+      notSpecified: 'Not specified',
+      lessThanMinute: 'less than 1 minute',
+      minuteAgo: '1 minute',
+      minutesAgo: '{0} minutes',
+      likeAgo: '1 like',
+      likesAgo: '{0} likes',
+      ago: 'ago',
+      limitReachedTitle: 'Likes limit reached!',
+      limitReachedMessage: 'The system stopped because it reached the limit of {0} likes.',
+      limitReachedInfo: 'You can reset the likes counter by clicking the "Reset counter" button below.',
+      ok: 'OK',
+      unblurLikesLabel: 'Unblur Likes photos'
+    }
+  };
+  function t(key) {
+    return T[uiLang]?.[key] ?? T.pt[key] ?? key;
+  }
+  function formatT(key, ...values) {
+    let s = t(key);
+    values.forEach((v, i) => {
+      s = s.replace(`{${i}}`, String(v));
+    });
+    return s;
+  }
 
   // Criação do painel de controle
   const container = document.createElement('div');
@@ -104,6 +225,50 @@
   container.style.opacity = '0.2';
   container.style.transition = 'opacity 0.3s';
   document.body.appendChild(container);
+
+  // Estilos dos toggles (slide)
+  const toggleStyle = document.createElement('style');
+  toggleStyle.textContent = `
+    .autoswipe-toggle-wrap { display: inline-flex; align-items: center; cursor: pointer; user-select: none; }
+    .autoswipe-toggle-track { width: 44px; height: 24px; border-radius: 12px; background: #444; position: relative; flex-shrink: 0; transition: background 0.2s ease; }
+    .autoswipe-toggle-track.checked { background: #4caf50; }
+    .autoswipe-toggle-knob { width: 20px; height: 20px; border-radius: 50%; background: #fff; position: absolute; left: 2px; top: 2px; transition: transform 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+    .autoswipe-toggle-track.checked .autoswipe-toggle-knob { transform: translateX(20px); }
+  `;
+  document.head.appendChild(toggleStyle);
+
+  function createToggle(initialChecked) {
+    let checked = !!initialChecked;
+    const wrap = document.createElement('span');
+    wrap.className = 'autoswipe-toggle-wrap';
+    wrap.setAttribute('role', 'switch');
+    wrap.setAttribute('aria-checked', checked);
+    const track = document.createElement('span');
+    track.className = 'autoswipe-toggle-track';
+    if (checked) track.classList.add('checked');
+    const knob = document.createElement('span');
+    knob.className = 'autoswipe-toggle-knob';
+    track.appendChild(knob);
+    wrap.appendChild(track);
+    const changeListeners = [];
+    function updateVisual() {
+      track.classList.toggle('checked', checked);
+      wrap.setAttribute('aria-checked', checked);
+    }
+    wrap.addEventListener('click', (e) => {
+      e.preventDefault();
+      checked = !checked;
+      updateVisual();
+      changeListeners.forEach((fn) => fn());
+    });
+    const toggle = {
+      element: wrap,
+      get checked() { return checked; },
+      set checked(v) { checked = !!v; updateVisual(); },
+      addEventListener(ev, fn) { if (ev === 'change') changeListeners.push(fn); }
+    };
+    return toggle;
+  }
 
   // Carregar posição salva do localStorage, se existir
   const savedLeft = localStorage.getItem('modalPositionLeft');
@@ -144,7 +309,6 @@
   likeCounterContainer.style.alignItems = 'center';
 
   const likeCounter = document.createElement('div');
-  likeCounter.textContent = `Likes: ${likesCount}`;
   likeCounter.style.color = '#4caf50';
   likeCounter.style.fontWeight = 'bold';
   likeCounterContainer.appendChild(likeCounter);
@@ -162,7 +326,6 @@
   dislikeCounterContainer.style.alignItems = 'center';
 
   const dislikeCounter = document.createElement('div');
-  dislikeCounter.textContent = `Dislikes: ${dislikesCount}`;
   dislikeCounter.style.color = '#f44336';
   dislikeCounter.style.fontWeight = 'bold';
   dislikeCounterContainer.appendChild(dislikeCounter);
@@ -178,6 +341,30 @@
   leftColumn.style.maxHeight = '100%';
   container.appendChild(leftColumn);
 
+  // Botão de idioma PT/EN
+  const langBar = document.createElement('div');
+  langBar.style.display = 'flex';
+  langBar.style.justifyContent = 'flex-end';
+  langBar.style.marginBottom = '5px';
+  const langButton = document.createElement('button');
+  langButton.style.padding = '6px 14px';
+  langButton.style.borderRadius = '6px';
+  langButton.style.cursor = 'pointer';
+  langButton.style.border = '1px solid #ffcc00';
+  langButton.style.fontSize = '12px';
+  langButton.style.fontWeight = 'bold';
+  langButton.style.minWidth = '44px';
+  langButton.style.transition = 'background-color 0.2s, color 0.2s';
+  function updateLangButtonLabel() {
+    langButton.textContent = uiLang === 'pt' ? 'PT' : 'EN';
+    langButton.title = uiLang === 'pt' ? 'Idioma: Português (clique para Inglês)' : 'Language: English (click for Portuguese)';
+    langButton.style.backgroundColor = uiLang === 'pt' ? '#ffcc00' : '#333';
+    langButton.style.color = uiLang === 'pt' ? '#000' : '#ffcc00';
+  }
+  updateLangButtonLabel();
+  langBar.appendChild(langButton);
+  leftColumn.appendChild(langBar);
+
   leftColumn.appendChild(statsContainer);
 
   forbiddenWords =
@@ -192,8 +379,8 @@
   forbiddenWordsInput.style.marginTop = '5px';
 
   const forbiddenWordsLabel = document.createElement('label');
-  forbiddenWordsLabel.textContent =
-    'Palavras proibidas (separadas por vírgula)';
+  forbiddenWordsLabel.setAttribute('data-i18n', 'forbiddenWordsLabel');
+  forbiddenWordsLabel.textContent = t('forbiddenWordsLabel');
   leftColumn.appendChild(forbiddenWordsLabel);
   leftColumn.appendChild(forbiddenWordsInput);
 
@@ -206,11 +393,11 @@
   });
 
   const pauseButton = document.createElement('button');
-  pauseButton.textContent = 'Pausar';
+  pauseButton.textContent = isPaused ? t('continue') : t('pause');
   pauseButton.style.padding = '10px';
   pauseButton.style.borderRadius = '8px';
   pauseButton.style.cursor = 'pointer';
-  pauseButton.style.backgroundColor = '#f44336';
+  pauseButton.style.backgroundColor = isPaused ? '#4caf50' : '#f44336';
   pauseButton.style.color = 'white';
   pauseButton.style.border = 'none';
   pauseButton.style.fontWeight = 'bold';
@@ -218,7 +405,7 @@
   leftColumn.appendChild(pauseButton);
 
   const createSlider = (
-    labelText,
+    labelI18nKey,
     min,
     max,
     step,
@@ -231,7 +418,8 @@
     sliderContainer.style.flexDirection = 'column';
 
     const label = document.createElement('label');
-    label.textContent = labelText;
+    label.setAttribute('data-i18n', labelI18nKey);
+    label.textContent = t(labelI18nKey);
     label.style.marginBottom = '5px';
     sliderContainer.appendChild(label);
 
@@ -260,7 +448,7 @@
 
 
   const profileWaitSlider = createSlider(
-    'Espera ao abrir perfil (segundos)',
+    'profileWaitLabel',
     100,
     10000,
     100,
@@ -285,7 +473,7 @@
   leftColumn.appendChild(profileWaitContainer);
 
   const intervalSlider = createSlider(
-    'Intervalo entre ações (segundos)',
+    'intervalLabel',
     100,
     10000,
     100,
@@ -324,7 +512,8 @@
   leftColumn.appendChild(likesLimitContainer);
 
   const likesLimitTitle = document.createElement('div');
-  likesLimitTitle.textContent = 'Limitador de Likes';
+  likesLimitTitle.setAttribute('data-i18n', 'likesLimitTitle');
+  likesLimitTitle.textContent = t('likesLimitTitle');
   likesLimitTitle.style.fontWeight = 'bold';
   likesLimitTitle.style.color = '#ffcc00';
   likesLimitTitle.style.marginBottom = '5px';
@@ -337,13 +526,11 @@
   likesLimitRow.style.gap = '10px';
   likesLimitContainer.appendChild(likesLimitRow);
 
-  const enableLikesLimitCheckbox = document.createElement('input');
-  enableLikesLimitCheckbox.type = 'checkbox';
-  enableLikesLimitCheckbox.checked = likesLimitEnabled;
+  const enableLikesLimitToggle = createToggle(likesLimitEnabled);
 
-  // Texto dinâmico para o checkbox de limitador de likes
+  // Texto dinâmico para o limitador de likes
   const likesLimitStatusText = document.createElement('span');
-  likesLimitStatusText.textContent = likesLimitEnabled ? 'Ativado' : 'Desativado';
+  likesLimitStatusText.textContent = likesLimitEnabled ? t('enabled') : t('disabled');
   likesLimitStatusText.style.color = likesLimitEnabled ? '#4caf50' : '#f44336';
   likesLimitStatusText.style.fontWeight = 'bold';
   likesLimitStatusText.style.marginLeft = '5px';
@@ -358,15 +545,16 @@
   likesLimitInput.style.border = '2px solid #ffcc00';
   likesLimitInput.style.boxSizing = 'border-box';
   likesLimitInput.style.width = '80px';
-  likesLimitInput.placeholder = 'Limite';
+  likesLimitInput.placeholder = t('limitPlaceholder');
 
-  likesLimitRow.appendChild(enableLikesLimitCheckbox);
+  likesLimitRow.appendChild(enableLikesLimitToggle.element);
   likesLimitRow.appendChild(likesLimitStatusText);
   likesLimitRow.appendChild(likesLimitInput);
 
   // Botão para resetar contador
   const resetCounterButton = document.createElement('button');
-  resetCounterButton.textContent = 'Resetar Contador';
+  resetCounterButton.setAttribute('data-i18n', 'resetCounter');
+  resetCounterButton.textContent = t('resetCounter');
   resetCounterButton.style.padding = '8px';
   resetCounterButton.style.borderRadius = '5px';
   resetCounterButton.style.cursor = 'pointer';
@@ -376,13 +564,13 @@
   likesLimitContainer.appendChild(resetCounterButton);
 
   // Event listeners para limite de likes
-  enableLikesLimitCheckbox.addEventListener('change', () => {
-    likesLimitEnabled = enableLikesLimitCheckbox.checked;
+  enableLikesLimitToggle.addEventListener('change', () => {
+    likesLimitEnabled = enableLikesLimitToggle.checked;
     localStorage.setItem('likesLimitEnabled', likesLimitEnabled);
     likesLimitInput.disabled = !likesLimitEnabled;
 
     // Atualizar texto dinâmico
-    likesLimitStatusText.textContent = likesLimitEnabled ? 'Ativado' : 'Desativado';
+    likesLimitStatusText.textContent = likesLimitEnabled ? t('enabled') : t('disabled');
     likesLimitStatusText.style.color = likesLimitEnabled ? '#4caf50' : '#f44336';
 
     if (likesLimitEnabled) {
@@ -429,6 +617,36 @@
   // Inicializar estado do input
   likesLimitInput.disabled = !likesLimitEnabled;
 
+  // Seção Desbloquear fotos em Likes (unblur)
+  const unblurLikesContainer = document.createElement('div');
+  unblurLikesContainer.style.backgroundColor = '#2a2a2a';
+  unblurLikesContainer.style.padding = '10px';
+  unblurLikesContainer.style.borderRadius = '8px';
+  unblurLikesContainer.style.border = '2px solid #9c27b0';
+  unblurLikesContainer.style.marginTop = '10px';
+  unblurLikesContainer.style.display = 'flex';
+  unblurLikesContainer.style.flexDirection = 'column';
+  unblurLikesContainer.style.gap = '8px';
+  leftColumn.appendChild(unblurLikesContainer);
+
+  const unblurLikesToggle = createToggle(unblurLikesEnabled);
+
+  const unblurLikesLabel = document.createElement('label');
+  unblurLikesLabel.setAttribute('data-i18n', 'unblurLikesLabel');
+  unblurLikesLabel.textContent = t('unblurLikesLabel');
+  unblurLikesLabel.style.cursor = 'pointer';
+  unblurLikesLabel.style.display = 'flex';
+  unblurLikesLabel.style.alignItems = 'center';
+  unblurLikesLabel.style.gap = '8px';
+  unblurLikesLabel.prepend(unblurLikesToggle.element);
+  unblurLikesContainer.appendChild(unblurLikesLabel);
+
+  unblurLikesToggle.addEventListener('change', () => {
+    unblurLikesEnabled = unblurLikesToggle.checked;
+    localStorage.setItem('unblurLikesEnabled', unblurLikesEnabled);
+    if (unblurLikesEnabled) unblurLikesCards();
+  });
+
   // Seção de filtro por altura
   const heightFilterContainer = document.createElement('div');
   heightFilterContainer.style.backgroundColor = '#2a2a2a';
@@ -449,7 +667,8 @@
   heightFilterTitleRow.style.marginBottom = '5px';
 
   const heightFilterTitle = document.createElement('div');
-  heightFilterTitle.textContent = 'Limitador de Altura';
+  heightFilterTitle.setAttribute('data-i18n', 'heightFilterTitle');
+  heightFilterTitle.textContent = t('heightFilterTitle');
   heightFilterTitle.style.fontWeight = 'bold';
   heightFilterTitle.style.color = '#ffcc00';
   heightFilterTitleRow.appendChild(heightFilterTitle);
@@ -472,7 +691,8 @@
 
   // Tooltip customizado
   const tooltip = document.createElement('div');
-  tooltip.textContent = 'Como usar: Ative o limitador e defina a altura em cm. Escolha "Maior que" para dar dislike em pessoas acima da altura, ou "Menor que" para abaixo. Exemplo: Altura 170cm + "Maior que" = dislike em pessoas acima de 170cm.';
+  tooltip.setAttribute('data-i18n', 'heightTooltip');
+  tooltip.textContent = t('heightTooltip');
   tooltip.style.position = 'absolute';
   tooltip.style.bottom = '100%';
   tooltip.style.left = '50%';
@@ -528,13 +748,11 @@
   heightFilterRow.style.gap = '10px';
   heightFilterContainer.appendChild(heightFilterRow);
 
-  const enableHeightFilterCheckbox = document.createElement('input');
-  enableHeightFilterCheckbox.type = 'checkbox';
-  enableHeightFilterCheckbox.checked = heightFilterEnabled;
+  const enableHeightFilterToggle = createToggle(heightFilterEnabled);
 
-  // Texto dinâmico para o checkbox de limitador de altura
+  // Texto dinâmico para o limitador de altura
   const heightFilterStatusText = document.createElement('span');
-  heightFilterStatusText.textContent = heightFilterEnabled ? 'Ativado' : 'Desativado';
+  heightFilterStatusText.textContent = heightFilterEnabled ? t('enabled') : t('disabled');
   heightFilterStatusText.style.color = heightFilterEnabled ? '#4caf50' : '#f44336';
   heightFilterStatusText.style.fontWeight = 'bold';
   heightFilterStatusText.style.marginLeft = '5px';
@@ -550,7 +768,7 @@
   heightInput.style.border = '2px solid #ffcc00';
   heightInput.style.boxSizing = 'border-box';
   heightInput.style.width = '80px';
-  heightInput.placeholder = 'Altura (cm)';
+  heightInput.placeholder = t('heightPlaceholder');
 
   const heightConditionSelect = document.createElement('select');
   heightConditionSelect.style.padding = '5px';
@@ -559,28 +777,28 @@
 
   const optionGreater = document.createElement('option');
   optionGreater.value = 'greater';
-  optionGreater.textContent = 'Maior que';
+  optionGreater.textContent = t('greaterThan');
 
   const optionLess = document.createElement('option');
   optionLess.value = 'less';
-  optionLess.textContent = 'Menor que';
+  optionLess.textContent = t('lessThan');
 
   heightConditionSelect.appendChild(optionGreater);
   heightConditionSelect.appendChild(optionLess);
   heightConditionSelect.value = heightCondition;
 
-  heightFilterRow.appendChild(enableHeightFilterCheckbox);
+  heightFilterRow.appendChild(enableHeightFilterToggle.element);
   heightFilterRow.appendChild(heightFilterStatusText);
   heightFilterRow.appendChild(heightInput);
   heightFilterRow.appendChild(heightConditionSelect);
 
   // Event listeners para filtro de altura
-  enableHeightFilterCheckbox.addEventListener('change', () => {
-    heightFilterEnabled = enableHeightFilterCheckbox.checked;
+  enableHeightFilterToggle.addEventListener('change', () => {
+    heightFilterEnabled = enableHeightFilterToggle.checked;
     localStorage.setItem('heightFilterEnabled', heightFilterEnabled);
 
     // Atualizar texto dinâmico
-    heightFilterStatusText.textContent = heightFilterEnabled ? 'Ativado' : 'Desativado';
+    heightFilterStatusText.textContent = heightFilterEnabled ? t('enabled') : t('disabled');
     heightFilterStatusText.style.color = heightFilterEnabled ? '#4caf50' : '#f44336';
 
     // Ativar/desativar inputs
@@ -604,13 +822,14 @@
 
   pauseButton.addEventListener('click', () => {
     isPaused = !isPaused;
-    pauseButton.textContent = isPaused ? 'Continuar' : 'Pausar';
+    pauseButton.textContent = isPaused ? t('continue') : t('pause');
     // Mudar cor dinamicamente: verde quando ativo, vermelho quando pausado
     if (isPaused) {
       pauseButton.style.backgroundColor = '#4caf50';
     } else {
       pauseButton.style.backgroundColor = '#f44336';
     }
+    localStorage.setItem('autoswipePaused', String(isPaused));
   });
 
   // Criar container para informações (lado direito)
@@ -634,9 +853,9 @@
   nameAgeContainer.style.flexDirection = 'column';
   nameAgeContainer.style.gap = '5px';
   // Inicializar com valores do localStorage se existirem
-  const initialName = currentProfileName || 'Não disponível';
-  const initialAge = currentProfileAge || 'Não disponível';
-  nameAgeContainer.textContent = `Nome: ${initialName}, Idade: ${initialAge}`;
+  const initialName = (!currentProfileName || currentProfileName === 'Não disponível') ? t('notAvailable') : currentProfileName;
+  const initialAge = (!currentProfileAge || currentProfileAge === 'Não disponível') ? t('notAvailable') : currentProfileAge;
+  nameAgeContainer.textContent = formatT('nameAgeFormat', initialName, initialAge);
   rightColumn.appendChild(nameAgeContainer);
 
   // Criação do contêiner de informações do perfil
@@ -652,13 +871,13 @@
   rightColumn.appendChild(profileInfoContainer);
 
   // Função para criar cada linha de informação
-  function createInfoRow(label, value) {
+  function createInfoRow(labelKey, value) {
     const row = document.createElement('div');
     row.style.display = 'flex';
     row.style.justifyContent = 'space-between';
 
     const labelSpan = document.createElement('span');
-    labelSpan.textContent = label + ':';
+    labelSpan.textContent = t(labelKey) + ':';
     labelSpan.style.fontWeight = 'bold';
 
     const valueSpan = document.createElement('span');
@@ -798,11 +1017,11 @@
     // Buscar no card principal da tela (antes de abrir o perfil)
     // Tentar múltiplos seletores para garantir que encontre
     const nameElement = document.querySelector('span[itemprop="name"]') ||
-                        document.querySelector('[itemprop="name"]') ||
-                        document.querySelector('span.Typs\\(display-1-strong\\)[itemprop="name"]');
+      document.querySelector('[itemprop="name"]') ||
+      document.querySelector('span.Typs\\(display-1-strong\\)[itemprop="name"]');
     const ageElement = document.querySelector('span[itemprop="age"]') ||
-                       document.querySelector('[itemprop="age"]') ||
-                       document.querySelector('span[itemprop="age"].As\\(b\\)');
+      document.querySelector('[itemprop="age"]') ||
+      document.querySelector('span[itemprop="age"].As\\(b\\)');
 
     if (nameElement) {
       name = nameElement.textContent.trim();
@@ -1096,7 +1315,7 @@
   profileInfo.style.backgroundColor = '#1c1c1c';
   profileInfo.style.borderRadius = '8px';
   profileInfo.style.color = '#ffcc00';
-  profileInfo.textContent = 'Sobre mim: Não disponível';
+  profileInfo.textContent = `${t('aboutMe')}: ${t('notAvailable')}`;
   rightColumn.appendChild(profileInfo);
 
   // Card de último dislike dentro do modal
@@ -1117,7 +1336,7 @@
 
   function updateLikeCounter() {
     if (likesLimitEnabled && likesLimit !== null) {
-      likeCounter.textContent = `Likes: ${likesCount}/${likesLimit}`;
+      likeCounter.textContent = formatT('likesLimitFormat', likesCount, likesLimit);
       // Destacar quando próximo do limite (80% ou mais)
       if (likesCount >= likesLimit * 0.8) {
         likeCounter.style.color = '#ffcc00';
@@ -1128,15 +1347,18 @@
         likeCounter.style.color = '#4caf50';
       }
     } else {
-      likeCounter.textContent = `Likes: ${likesCount}`;
+      likeCounter.textContent = formatT('likesFormat', likesCount);
       likeCounter.style.color = '#4caf50';
     }
   }
 
   function updateDislikeCounter() {
-    dislikeCounter.textContent = `Dislikes: ${dislikesCount}`;
+    dislikeCounter.textContent = formatT('dislikesFormat', dislikesCount);
     dislikeCounter.style.color = '#f44336';
   }
+
+  updateLikeCounter();
+  updateDislikeCounter();
 
   function updateProfileInfo(text) {
     const extractedInfo = extractProfileInfo();
@@ -1145,6 +1367,9 @@
       return;
     }
 
+    lastExtractedInfo = extractedInfo;
+    lastAboutMeText = text || t('notAvailable');
+
     // Limpa o contêiner antes de atualizar
     profileInfoContainer.innerHTML = '';
 
@@ -1152,56 +1377,57 @@
     let hasInfo = false;
 
     if (extractedInfo.distance) {
-      profileInfoContainer.appendChild(createInfoRow('Distância', extractedInfo.distance));
+      profileInfoContainer.appendChild(createInfoRow('distance', extractedInfo.distance));
       hasInfo = true;
     }
     if (extractedInfo.height) {
-      profileInfoContainer.appendChild(createInfoRow('Altura', extractedInfo.height));
+      profileInfoContainer.appendChild(createInfoRow('height', extractedInfo.height));
       hasInfo = true;
     }
     if (extractedInfo.profession) {
-      profileInfoContainer.appendChild(createInfoRow('Profissão', extractedInfo.profession));
+      profileInfoContainer.appendChild(createInfoRow('profession', extractedInfo.profession));
       hasInfo = true;
     }
     if (extractedInfo.genderPronoun) {
-      profileInfoContainer.appendChild(createInfoRow('Pronomes', extractedInfo.genderPronoun));
+      profileInfoContainer.appendChild(createInfoRow('pronouns', extractedInfo.genderPronoun));
       hasInfo = true;
     }
     if (extractedInfo.languages) {
-      profileInfoContainer.appendChild(createInfoRow('Idiomas', extractedInfo.languages));
+      profileInfoContainer.appendChild(createInfoRow('languages', extractedInfo.languages));
       hasInfo = true;
     }
 
     // Se nenhuma informação foi encontrada, mostrar mensagem
     if (!hasInfo) {
       const noInfo = document.createElement('div');
-      noInfo.textContent = 'Nenhuma informação extraída';
+      noInfo.textContent = t('noInfoExtracted');
       noInfo.style.color = '#ff6b6b';
       profileInfoContainer.appendChild(noInfo);
     }
 
     // Atualiza a seção "Sobre mim"
-    const aboutMeText = text || 'Não disponível';
-    profileInfo.textContent = `Sobre mim: ${aboutMeText}`;
+    const aboutMeText = text || t('notAvailable');
+    profileInfo.textContent = `${t('aboutMe')}: ${aboutMeText}`;
 
     // Destacar se é muito curto
-    if (aboutMeText.length < 10 && aboutMeText !== 'Não disponível') {
+    const notAvail = t('notAvailable');
+    if (aboutMeText.length < 10 && aboutMeText !== notAvail && aboutMeText !== 'Não disponível') {
       profileInfo.style.color = '#ff6b6b';
     } else {
       profileInfo.style.color = '#ffcc00';
     }
 
-    // Atualizar container de Nome e Idade
-    const name = currentProfileName || 'Não disponível';
-    const age = currentProfileAge || 'Não disponível';
-    nameAgeContainer.textContent = `Nome: ${name}, Idade: ${age}`;
+    // Atualizar container de Nome e Idade (exibir traduzido quando for sentinela)
+    const name = (!currentProfileName || currentProfileName === 'Não disponível') ? t('notAvailable') : currentProfileName;
+    const age = (!currentProfileAge || currentProfileAge === 'Não disponível') ? t('notAvailable') : currentProfileAge;
+    nameAgeContainer.textContent = formatT('nameAgeFormat', name, age);
   }
 
   // Função para atualizar apenas o nome e idade
   function updateNameAge() {
-    const name = currentProfileName || 'Não disponível';
-    const age = currentProfileAge || 'Não disponível';
-    nameAgeContainer.textContent = `Nome: ${name}, Idade: ${age}`;
+    const name = (!currentProfileName || currentProfileName === 'Não disponível') ? t('notAvailable') : currentProfileName;
+    const age = (!currentProfileAge || currentProfileAge === 'Não disponível') ? t('notAvailable') : currentProfileAge;
+    nameAgeContainer.textContent = formatT('nameAgeFormat', name, age);
   }
 
   function updateLastDislikeCard() {
@@ -1237,40 +1463,40 @@
     const now = new Date();
     const diffMs = now - lastDislikeTimestamp;
     const diffMinutes = Math.floor(diffMs / 60000);
-    const minutesText = diffMinutes === 0 ? 'menos de 1 minuto' :
-                        diffMinutes === 1 ? '1 minuto' :
-                        `${diffMinutes} minutos`;
+    const minutesText = diffMinutes === 0 ? t('lessThanMinute') :
+      diffMinutes === 1 ? t('minuteAgo') :
+        formatT('minutesAgo', diffMinutes);
 
     // Calcular likes atrás
     const likesSinceDislike = likesCount - lastDislikeLikesCount;
     const likesText = likesSinceDislike === 0 ? '0 likes' :
-                      likesSinceDislike === 1 ? '1 like' :
-                      `${likesSinceDislike} likes`;
+      likesSinceDislike === 1 ? t('likeAgo') :
+        formatT('likesAgo', likesSinceDislike);
 
     // Montar conteúdo do card
     const nameAgeText = lastDislikeProfileName && lastDislikeProfileAge ?
-                       `${lastDislikeProfileName}, ${lastDislikeProfileAge}` :
-                       (lastDislikeProfileName || 'Nome não disponível');
+      `${lastDislikeProfileName}, ${lastDislikeProfileAge}` :
+      (lastDislikeProfileName || t('nameNotAvailable'));
 
-    const reasonText = lastDislikeReason || 'Não especificado';
+    const reasonText = lastDislikeReason || t('notSpecified');
 
     // Atualizar conteúdo do card
     if (card) {
       card.innerHTML = `
         <div style="font-weight: bold; margin-bottom: 10px; color: #ffcc00; font-size: 14px;">
-          Último Dislike Registrado em:
+          ${t('lastDislikeTitle')}
         </div>
         <div style="margin-bottom: 8px; font-weight: bold; font-size: 15px;">
           ${nameAgeText}
         </div>
         <div style="margin-bottom: 8px;">
-          Motivo: ${reasonText}
+          ${t('reason')}: ${reasonText}
         </div>
         <div style="margin-bottom: 5px; color: #4caf50;">
-          ${likesText} atrás
+          ${likesText} ${t('ago')}
         </div>
         <div style="color: #4caf50;">
-          ${minutesText} atrás
+          ${minutesText} ${t('ago')}
         </div>
       `;
 
@@ -1306,6 +1532,70 @@
     }
   }
 
+  function applyLanguage() {
+    container.querySelectorAll('[data-i18n]').forEach((el) => {
+      const key = el.getAttribute('data-i18n');
+      if (key) el.textContent = t(key);
+    });
+    pauseButton.textContent = isPaused ? t('continue') : t('pause');
+    likesLimitStatusText.textContent = likesLimitEnabled ? t('enabled') : t('disabled');
+    heightFilterStatusText.textContent = heightFilterEnabled ? t('enabled') : t('disabled');
+    likesLimitInput.placeholder = t('limitPlaceholder');
+    heightInput.placeholder = t('heightPlaceholder');
+    optionGreater.textContent = t('greaterThan');
+    optionLess.textContent = t('lessThan');
+    updateLikeCounter();
+    updateDislikeCounter();
+    if (lastExtractedInfo) {
+      profileInfoContainer.innerHTML = '';
+      let hasInfo = false;
+      if (lastExtractedInfo.distance) {
+        profileInfoContainer.appendChild(createInfoRow('distance', lastExtractedInfo.distance));
+        hasInfo = true;
+      }
+      if (lastExtractedInfo.height) {
+        profileInfoContainer.appendChild(createInfoRow('height', lastExtractedInfo.height));
+        hasInfo = true;
+      }
+      if (lastExtractedInfo.profession) {
+        profileInfoContainer.appendChild(createInfoRow('profession', lastExtractedInfo.profession));
+        hasInfo = true;
+      }
+      if (lastExtractedInfo.genderPronoun) {
+        profileInfoContainer.appendChild(createInfoRow('pronouns', lastExtractedInfo.genderPronoun));
+        hasInfo = true;
+      }
+      if (lastExtractedInfo.languages) {
+        profileInfoContainer.appendChild(createInfoRow('languages', lastExtractedInfo.languages));
+        hasInfo = true;
+      }
+      if (!hasInfo) {
+        const noInfo = document.createElement('div');
+        noInfo.textContent = t('noInfoExtracted');
+        noInfo.style.color = '#ff6b6b';
+        profileInfoContainer.appendChild(noInfo);
+      }
+      const aboutDisplay = (lastAboutMeText && lastAboutMeText !== 'Não disponível') ? lastAboutMeText : t('notAvailable');
+      profileInfo.textContent = `${t('aboutMe')}: ${aboutDisplay}`;
+      const name = (!currentProfileName || currentProfileName === 'Não disponível') ? t('notAvailable') : currentProfileName;
+      const age = (!currentProfileAge || currentProfileAge === 'Não disponível') ? t('notAvailable') : currentProfileAge;
+      nameAgeContainer.textContent = formatT('nameAgeFormat', name, age);
+    } else {
+      profileInfo.textContent = `${t('aboutMe')}: ${t('notAvailable')}`;
+      const name = (!currentProfileName || currentProfileName === 'Não disponível') ? t('notAvailable') : currentProfileName;
+      const age = (!currentProfileAge || currentProfileAge === 'Não disponível') ? t('notAvailable') : currentProfileAge;
+      nameAgeContainer.textContent = formatT('nameAgeFormat', name, age);
+    }
+    updateLastDislikeCard();
+  }
+
+  langButton.addEventListener('click', () => {
+    uiLang = uiLang === 'pt' ? 'en' : 'pt';
+    localStorage.setItem('autoswipeLang', uiLang);
+    applyLanguage();
+    updateLangButtonLabel();
+  });
+
   function showLimitReachedPopup() {
     // Criar popup
     const popup = document.createElement('div');
@@ -1326,26 +1616,26 @@
     popup.style.maxWidth = '500px';
 
     const title = document.createElement('div');
-    title.textContent = 'Limite de Likes Atingido!';
+    title.textContent = t('limitReachedTitle');
     title.style.fontSize = '24px';
     title.style.fontWeight = 'bold';
     title.style.color = '#ffcc00';
     title.style.marginBottom = '20px';
 
     const message = document.createElement('div');
-    message.textContent = `O sistema parou pois atingiu o limite de ${likesLimit} likes.`;
+    message.textContent = formatT('limitReachedMessage', likesLimit);
     message.style.fontSize = '16px';
     message.style.marginBottom = '20px';
     message.style.lineHeight = '1.5';
 
     const info = document.createElement('div');
-    info.textContent = `Você pode resetar o contador de likes clicando no botão "Resetar Contador" abaixo.`;
+    info.textContent = t('limitReachedInfo');
     info.style.fontSize = '14px';
     info.style.color = '#cccccc';
     info.style.marginBottom = '25px';
 
     const closeButton = document.createElement('button');
-    closeButton.textContent = 'OK';
+    closeButton.textContent = t('ok');
     closeButton.style.padding = '12px 30px';
     closeButton.style.borderRadius = '8px';
     closeButton.style.backgroundColor = '#ffcc00';
@@ -1461,8 +1751,9 @@
     // VERIFICAR LIMITE DE LIKES ANTES DE ABRIR PERFIL
     if (likesLimitEnabled && likesLimit !== null && likesCount >= likesLimit) {
       isPaused = true;
-      pauseButton.textContent = 'Continuar';
+      pauseButton.textContent = t('continue');
       pauseButton.style.backgroundColor = '#4caf50';
+      localStorage.setItem('autoswipePaused', 'true');
       showLimitReachedPopup();
       console.log(`Limite de likes atingido: ${likesCount}/${likesLimit}`);
       return;
@@ -1652,8 +1943,81 @@
     }
   }
 
+  /**
+   * Remove o blur dos cards da seção "Quem curtiu você" (Likes) usando a API do Tinder.
+   * Só executa em /app/likes-you ou /app/gold-home e quando unblurLikesEnabled estiver ativo.
+   * Falha em silêncio (sem alert) em caso de token ausente, 401 ou erro de rede.
+   */
+  const UNBLUR_LOG = '[AutoSwipe Unblur]';
+
+  async function unblurLikesCards() {
+    const path = location.pathname || '';
+    const onLikesPage = path.includes('/app/likes-you') || path.includes('/app/gold-home');
+
+    if (!onLikesPage) {
+      return; // sem log para não poluir quando estiver em outras abas
+    }
+
+    if (!unblurLikesEnabled) {
+      console.log(UNBLUR_LOG, 'Página likes detectada, mas opção "Desbloquear fotos em Likes" está desativada.');
+      return;
+    }
+
+    const token = localStorage.getItem('TinderWeb/APIToken');
+    if (!token) {
+      console.warn(UNBLUR_LOG, 'Token (TinderWeb/APIToken) não encontrado no localStorage. Faça login no Tinder.');
+      return;
+    }
+
+    try {
+      console.log(UNBLUR_LOG, 'Chamando API fast-match/teasers...');
+      const res = await fetch('https://api.gotinder.com/v2/fast-match/teasers', {
+        headers: { 'X-Auth-Token': token, platform: 'web' }
+      });
+
+      if (!res.ok) {
+        console.warn(UNBLUR_LOG, 'API retornou status', res.status, res.statusText);
+        return;
+      }
+
+      const data = await res.json();
+      const teasers = data?.data?.results;
+      if (!Array.isArray(teasers) || teasers.length === 0) {
+        console.log(UNBLUR_LOG, 'Nenhum teaser retornado pela API (ou formato inesperado).');
+        return;
+      }
+
+      const allPreBlur = teasers.every((t) => t?.user?.pre_blur === true);
+      if (allPreBlur && teasers.length > 0) {
+        console.warn(UNBLUR_LOG, 'A API retornou apenas fotos com pre_blur: true. O Tinder pode estar servindo a mesma imagem borrada; o desbloqueio pode não ter efeito.');
+      }
+
+      const teaserEls = document.querySelectorAll('.Expand.enterAnimationContainer > div:nth-child(1)');
+      const len = Math.min(teasers.length, teaserEls.length);
+
+      console.log(UNBLUR_LOG, 'Teasers da API:', teasers.length, '| Cards no DOM:', teaserEls.length, '| Aplicando em:', len, 'card(s).');
+
+      let applied = 0;
+      for (let i = 0; i < len; i++) {
+        const photoUrl = teasers[i]?.user?.photos?.[0]?.url;
+        if (photoUrl && teaserEls[i]) {
+          teaserEls[i].style.backgroundImage = `url(${photoUrl})`;
+          applied++;
+        }
+      }
+      if (applied > 0) {
+        console.log(UNBLUR_LOG, 'Imagens atualizadas:', applied);
+      }
+    } catch (err) {
+      console.warn(UNBLUR_LOG, 'Erro ao desbloquear fotos:', err?.message || err);
+    }
+  }
+
   async function main() {
     console.log('AutoSwipe iniciado');
+
+    // Unblur dos cards "Likes": apenas uma vez ao carregar (sem interval, para evitar block por excesso de chamadas)
+    unblurLikesCards();
 
     // Atualizar card de último dislike a cada 10 segundos
     setInterval(() => {
