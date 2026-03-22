@@ -7,7 +7,7 @@
 // @description:pt Script de auto like e dislike com filtros, sliders e painel de controle.
 // @description:pt-BR Script de auto like e dislike no Tinder com filtros, sliders e painel visual.
 
-// @version      1.10.0
+// @version      1.13.1
 // @namespace    https://greasyfork.org/users/1416065
 // @author       Nox
 // @license      MIT
@@ -143,7 +143,7 @@
       limitReachedMessage: 'O sistema parou pois atingiu o limite de {0} likes.',
       limitReachedInfo: 'Você pode resetar o contador de likes clicando no botão "Resetar Contador" abaixo.',
       ok: 'OK',
-      unblurLikesLabel: 'Desbloquear fotos em Likes'
+      unblurLikesLabel: 'Desbloquear fotos em Likes',
     },
     en: {
       likes: 'Likes',
@@ -191,7 +191,7 @@
       limitReachedMessage: 'The system stopped because it reached the limit of {0} likes.',
       limitReachedInfo: 'You can reset the likes counter by clicking the "Reset counter" button below.',
       ok: 'OK',
-      unblurLikesLabel: 'Unblur Likes photos'
+      unblurLikesLabel: 'Unblur Likes photos',
     }
   };
   function t(key) {
@@ -207,33 +207,349 @@
 
   // Criação do painel de controle
   const container = document.createElement('div');
+  container.id = 'autoswipe-container';
   container.style.position = 'fixed';
   container.style.top = '10px';
   container.style.right = '10px';
   container.style.zIndex = '1000';
-  container.style.width = '700px';
-  container.style.maxHeight = '90vh';
-  container.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+  container.style.width = '720px';
+  container.style.maxHeight = '92vh';
+  container.style.background = 'linear-gradient(135deg, rgba(15,15,25,0.97) 0%, rgba(20,18,35,0.97) 100%)';
+  container.style.backdropFilter = 'blur(20px)';
   container.style.color = 'white';
-  container.style.padding = '15px';
-  container.style.borderRadius = '10px';
-  container.style.fontFamily = 'Arial, sans-serif';
-  container.style.fontSize = '14px';
+  container.style.borderRadius = '16px';
+  container.style.fontFamily = "'Segoe UI', system-ui, -apple-system, sans-serif";
+  container.style.fontSize = '13px';
   container.style.display = 'flex';
-  container.style.flexDirection = 'row';
-  container.style.gap = '15px';
-  container.style.opacity = '0.2';
-  container.style.transition = 'opacity 0.3s';
+  container.style.flexDirection = 'column';
+  container.style.gap = '0';
+  container.style.opacity = '0.15';
+  container.style.transition = 'opacity 0.4s ease, box-shadow 0.3s ease';
+  container.style.border = '1px solid rgba(255,255,255,0.08)';
+  container.style.boxShadow = '0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)';
+  container.style.overflow = 'hidden';
   document.body.appendChild(container);
 
-  // Estilos dos toggles (slide)
+  // Estilos globais do painel
   const toggleStyle = document.createElement('style');
   toggleStyle.textContent = `
+    #autoswipe-container * { box-sizing: border-box; }
+
+    /* Scrollbar customizada */
+    #autoswipe-container ::-webkit-scrollbar { width: 4px; }
+    #autoswipe-container ::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); border-radius: 2px; }
+    #autoswipe-container ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+    #autoswipe-container ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28); }
+
+    /* Toggles */
     .autoswipe-toggle-wrap { display: inline-flex; align-items: center; cursor: pointer; user-select: none; }
-    .autoswipe-toggle-track { width: 44px; height: 24px; border-radius: 12px; background: #444; position: relative; flex-shrink: 0; transition: background 0.2s ease; }
-    .autoswipe-toggle-track.checked { background: #4caf50; }
-    .autoswipe-toggle-knob { width: 20px; height: 20px; border-radius: 50%; background: #fff; position: absolute; left: 2px; top: 2px; transition: transform 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+    .autoswipe-toggle-track { width: 42px; height: 22px; border-radius: 11px; background: rgba(255,255,255,0.12); position: relative; flex-shrink: 0; transition: background 0.25s ease; }
+    .autoswipe-toggle-track.checked { background: linear-gradient(135deg, #4ade80, #22c55e); box-shadow: 0 0 8px rgba(74,222,128,0.35); }
+    .autoswipe-toggle-knob { width: 18px; height: 18px; border-radius: 50%; background: #fff; position: absolute; left: 2px; top: 2px; transition: transform 0.25s ease; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
     .autoswipe-toggle-track.checked .autoswipe-toggle-knob { transform: translateX(20px); }
+
+    /* Cards de seção */
+    .as-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 12px 14px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .as-card:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); }
+
+    /* Títulos de seção */
+    .as-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    /* Inputs */
+    .as-input {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .as-input:focus { border-color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.1); }
+    .as-input::placeholder { color: rgba(255,255,255,0.3); }
+    .as-input:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* Textarea */
+    .as-textarea {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #fff;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+      resize: none;
+      line-height: 1.5;
+      transition: border-color 0.2s, background 0.2s;
+      width: 100%;
+    }
+    .as-textarea:focus { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.09); }
+    .as-textarea::placeholder { color: rgba(255,255,255,0.28); }
+
+    /* Select */
+    .as-select {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      color: #fff;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='rgba(255,255,255,0.4)' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      padding-right: 28px;
+      transition: border-color 0.2s;
+    }
+    .as-select:focus { border-color: rgba(255,255,255,0.3); }
+    .as-select:disabled { opacity: 0.35; cursor: not-allowed; }
+    .as-select option { background: #1a1a2e; color: #fff; }
+
+    /* Botão pause/continue */
+    .as-btn-primary {
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s ease;
+      letter-spacing: 0.02em;
+      width: 100%;
+    }
+    .as-btn-primary:active { transform: scale(0.97); }
+    .as-btn-running {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(239,68,68,0.3);
+    }
+    .as-btn-running:hover { box-shadow: 0 6px 16px rgba(239,68,68,0.45); }
+    .as-btn-paused {
+      background: linear-gradient(135deg, #4ade80, #22c55e);
+      color: #000;
+      box-shadow: 0 4px 12px rgba(74,222,128,0.3);
+    }
+    .as-btn-paused:hover { box-shadow: 0 6px 16px rgba(74,222,128,0.45); }
+
+    /* Botão secundário */
+    .as-btn-secondary {
+      padding: 7px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.75);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s ease;
+    }
+    .as-btn-secondary:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); color: #fff; }
+    .as-btn-secondary:active { transform: scale(0.97); }
+
+    /* Slider */
+    .as-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.12);
+      outline: none;
+      cursor: pointer;
+    }
+    .as-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      cursor: pointer;
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.2), 0 2px 6px rgba(0,0,0,0.4);
+      transition: box-shadow 0.2s;
+    }
+    .as-slider::-webkit-slider-thumb:hover { box-shadow: 0 0 0 3px rgba(255,255,255,0.3), 0 2px 8px rgba(0,0,0,0.5); }
+    .as-slider::-moz-range-thumb {
+      width: 16px; height: 16px; border-radius: 50%; background: #fff; cursor: pointer; border: none;
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.2), 0 2px 6px rgba(0,0,0,0.4);
+    }
+
+    /* Status dot animado */
+    .as-status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      display: inline-block; flex-shrink: 0;
+    }
+    .as-status-dot.running {
+      background: #4ade80;
+      box-shadow: 0 0 6px #4ade80;
+      animation: as-pulse 1.8s ease-in-out infinite;
+    }
+    .as-status-dot.paused { background: #f87171; box-shadow: 0 0 6px #f87171; }
+    @keyframes as-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.55; transform: scale(0.85); }
+    }
+
+    /* Info rows */
+    .as-info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      gap: 8px;
+    }
+    .as-info-row:last-child { border-bottom: none; }
+    .as-info-label { color: rgba(255,255,255,0.45); font-size: 11px; font-weight: 500; flex-shrink: 0; }
+    .as-info-value { color: rgba(255,255,255,0.88); font-size: 12px; text-align: right; word-break: break-word; }
+
+    /* Contador cards */
+    .as-counter-card {
+      flex: 1;
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .as-counter-label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.6; }
+    .as-counter-value { font-size: 22px; font-weight: 700; line-height: 1; }
+
+    /* Header */
+    #as-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 16px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      cursor: move;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    #as-header-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      background: linear-gradient(90deg, #f472b6, #fb923c);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    #as-header-spacer { flex: 1; }
+
+    /* Minimize button */
+    #as-minimize-btn {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.5);
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s, color 0.2s;
+      padding: 0;
+      flex-shrink: 0;
+    }
+    #as-minimize-btn:hover { background: rgba(255,255,255,0.16); color: #fff; }
+
+    /* Body columns */
+    #as-body {
+      display: flex;
+      flex-direction: row;
+      gap: 12px;
+      padding: 12px 14px 14px;
+      overflow: hidden;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* Tooltip */
+    .as-tooltip-wrap { position: relative; display: inline-flex; }
+    .as-tooltip-icon {
+      width: 16px; height: 16px; border-radius: 50%;
+      background: rgba(255,204,0,0.12); border: 1px solid rgba(255,204,0,0.35);
+      color: #ffcc00; font-size: 10px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      cursor: help; flex-shrink: 0;
+    }
+    .as-tooltip-popup {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: 230px;
+      padding: 10px 12px;
+      background: rgba(10,10,20,0.97);
+      color: rgba(255,255,255,0.85);
+      border-radius: 10px;
+      border: 1px solid rgba(255,204,0,0.3);
+      font-size: 11px;
+      line-height: 1.5;
+      z-index: 10001;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s, visibility 0.2s;
+      pointer-events: none;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    .as-tooltip-wrap:hover .as-tooltip-popup { opacity: 1; visibility: visible; }
+
+    /* Último dislike card */
+    #autoswipe-last-dislike-card {
+      background: linear-gradient(135deg, rgba(127,29,29,0.55), rgba(153,27,27,0.4));
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    /* Status enabled/disabled */
+    .as-status-enabled { color: #4ade80; font-weight: 600; font-size: 11px; }
+    .as-status-disabled { color: #f87171; font-weight: 600; font-size: 11px; }
+
+    /* Lang button */
+    #as-lang-btn {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid rgba(255,204,0,0.35);
+      background: rgba(255,204,0,0.08);
+      color: #ffcc00;
+      font-family: inherit;
+      transition: background 0.2s, border-color 0.2s;
+      letter-spacing: 0.05em;
+    }
+    #as-lang-btn:hover { background: rgba(255,204,0,0.16); border-color: rgba(255,204,0,0.6); }
   `;
   document.head.appendChild(toggleStyle);
 
@@ -286,124 +602,182 @@
 
   container.addEventListener('mouseenter', () => {
     container.style.opacity = '1';
+    container.style.boxShadow = '0 12px 48px rgba(0,0,0,0.75), inset 0 1px 0 rgba(255,255,255,0.07)';
   });
   container.addEventListener('mouseleave', () => {
-    container.style.opacity = '0.2';
+    container.style.opacity = '0.15';
+    container.style.boxShadow = '0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)';
   });
 
+  // ── Header ──────────────────────────────────────────────
+  const asHeader = document.createElement('div');
+  asHeader.id = 'as-header';
+
+  // Ícone de fogo (logo)
+  const asLogo = document.createElement('span');
+  asLogo.textContent = '🔥';
+  asLogo.style.fontSize = '15px';
+
+  const asHeaderTitle = document.createElement('span');
+  asHeaderTitle.id = 'as-header-title';
+  asHeaderTitle.textContent = 'AutoSwipe';
+
+  // Status dot + texto
+  const asStatusWrap = document.createElement('span');
+  asStatusWrap.style.display = 'inline-flex';
+  asStatusWrap.style.alignItems = 'center';
+  asStatusWrap.style.gap = '5px';
+  asStatusWrap.style.background = 'rgba(255,255,255,0.05)';
+  asStatusWrap.style.border = '1px solid rgba(255,255,255,0.08)';
+  asStatusWrap.style.borderRadius = '20px';
+  asStatusWrap.style.padding = '3px 9px';
+
+  const asStatusDot = document.createElement('span');
+  asStatusDot.className = 'as-status-dot ' + (isPaused ? 'paused' : 'running');
+
+  const asStatusText = document.createElement('span');
+  asStatusText.style.fontSize = '11px';
+  asStatusText.style.color = 'rgba(255,255,255,0.55)';
+  asStatusText.style.fontWeight = '500';
+  asStatusText.textContent = isPaused ? '⏸' : '▶';
+  asStatusWrap.appendChild(asStatusDot);
+  asStatusWrap.appendChild(asStatusText);
+
+  const asHeaderSpacer = document.createElement('span');
+  asHeaderSpacer.id = 'as-header-spacer';
+
+  // Lang button no header
+  const langButton = document.createElement('button');
+  langButton.id = 'as-lang-btn';
+  function updateLangButtonLabel() {
+    langButton.textContent = uiLang === 'pt' ? 'PT' : 'EN';
+    langButton.title = uiLang === 'pt' ? 'Idioma: Português (clique para Inglês)' : 'Language: English (click for Portuguese)';
+  }
+  updateLangButtonLabel();
+
+  // Minimize button
+  const asMinimizeBtn = document.createElement('button');
+  asMinimizeBtn.id = 'as-minimize-btn';
+  asMinimizeBtn.title = 'Minimizar / Restaurar';
+  asMinimizeBtn.textContent = '−';
+  let asMinimized = false;
+  const asBody = document.createElement('div');
+  asBody.id = 'as-body';
+  asMinimizeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    asMinimized = !asMinimized;
+    asBody.style.display = asMinimized ? 'none' : 'flex';
+    asMinimizeBtn.textContent = asMinimized ? '+' : '−';
+    container.style.maxHeight = asMinimized ? 'none' : '92vh';
+  });
+
+  asHeader.appendChild(asLogo);
+  asHeader.appendChild(asHeaderTitle);
+  asHeader.appendChild(asStatusWrap);
+  asHeader.appendChild(asHeaderSpacer);
+  asHeader.appendChild(langButton);
+  asHeader.appendChild(asMinimizeBtn);
+  container.appendChild(asHeader);
+  container.appendChild(asBody);
+
+  // ── Stats (contadores) ───────────────────────────────────
   const statsContainer = document.createElement('div');
   statsContainer.style.display = 'flex';
-  statsContainer.style.justifyContent = 'space-between';
-  statsContainer.style.marginBottom = '10px';
-  statsContainer.style.gap = '10px';
+  statsContainer.style.gap = '8px';
+  statsContainer.style.marginBottom = '2px';
 
-  // Container para likes com contorno verde
+  // Like counter card
   const likeCounterContainer = document.createElement('div');
-  likeCounterContainer.style.backgroundColor = '#2a2a2a';
-  likeCounterContainer.style.padding = '10px';
-  likeCounterContainer.style.borderRadius = '8px';
-  likeCounterContainer.style.border = '2px solid #4caf50';
-  likeCounterContainer.style.flex = '1';
-  likeCounterContainer.style.display = 'flex';
-  likeCounterContainer.style.justifyContent = 'center';
-  likeCounterContainer.style.alignItems = 'center';
+  likeCounterContainer.className = 'as-counter-card';
+  likeCounterContainer.style.background = 'linear-gradient(135deg, rgba(74,222,128,0.1), rgba(34,197,94,0.06))';
+  likeCounterContainer.style.border = '1px solid rgba(74,222,128,0.2)';
 
-  const likeCounter = document.createElement('div');
-  likeCounter.style.color = '#4caf50';
-  likeCounter.style.fontWeight = 'bold';
+  const likeCounterLabel = document.createElement('span');
+  likeCounterLabel.className = 'as-counter-label';
+  likeCounterLabel.style.color = '#4ade80';
+  likeCounterLabel.textContent = t('likes');
+
+  const likeCounter = document.createElement('span');
+  likeCounter.className = 'as-counter-value';
+  likeCounter.style.color = '#4ade80';
+
+  likeCounterContainer.appendChild(likeCounterLabel);
   likeCounterContainer.appendChild(likeCounter);
   statsContainer.appendChild(likeCounterContainer);
 
-  // Container para dislikes com contorno vermelho
+  // Dislike counter card
   const dislikeCounterContainer = document.createElement('div');
-  dislikeCounterContainer.style.backgroundColor = '#2a2a2a';
-  dislikeCounterContainer.style.padding = '10px';
-  dislikeCounterContainer.style.borderRadius = '8px';
-  dislikeCounterContainer.style.border = '2px solid #f44336';
-  dislikeCounterContainer.style.flex = '1';
-  dislikeCounterContainer.style.display = 'flex';
-  dislikeCounterContainer.style.justifyContent = 'center';
-  dislikeCounterContainer.style.alignItems = 'center';
+  dislikeCounterContainer.className = 'as-counter-card';
+  dislikeCounterContainer.style.background = 'linear-gradient(135deg, rgba(248,113,113,0.1), rgba(239,68,68,0.06))';
+  dislikeCounterContainer.style.border = '1px solid rgba(248,113,113,0.2)';
 
-  const dislikeCounter = document.createElement('div');
-  dislikeCounter.style.color = '#f44336';
-  dislikeCounter.style.fontWeight = 'bold';
+  const dislikeCounterLabel = document.createElement('span');
+  dislikeCounterLabel.className = 'as-counter-label';
+  dislikeCounterLabel.style.color = '#f87171';
+  dislikeCounterLabel.textContent = t('dislikes');
+
+  const dislikeCounter = document.createElement('span');
+  dislikeCounter.className = 'as-counter-value';
+  dislikeCounter.style.color = '#f87171';
+
+  dislikeCounterContainer.appendChild(dislikeCounterLabel);
   dislikeCounterContainer.appendChild(dislikeCounter);
   statsContainer.appendChild(dislikeCounterContainer);
 
-  // Criar container para filtros (lado esquerdo)
+  // ── Left column ─────────────────────────────────────────
   const leftColumn = document.createElement('div');
   leftColumn.style.flex = '1';
   leftColumn.style.display = 'flex';
   leftColumn.style.flexDirection = 'column';
-  leftColumn.style.gap = '10px';
+  leftColumn.style.gap = '8px';
   leftColumn.style.overflowY = 'auto';
   leftColumn.style.maxHeight = '100%';
-  container.appendChild(leftColumn);
-
-  // Botão de idioma PT/EN
-  const langBar = document.createElement('div');
-  langBar.style.display = 'flex';
-  langBar.style.justifyContent = 'flex-end';
-  langBar.style.marginBottom = '5px';
-  const langButton = document.createElement('button');
-  langButton.style.padding = '6px 14px';
-  langButton.style.borderRadius = '6px';
-  langButton.style.cursor = 'pointer';
-  langButton.style.border = '1px solid #ffcc00';
-  langButton.style.fontSize = '12px';
-  langButton.style.fontWeight = 'bold';
-  langButton.style.minWidth = '44px';
-  langButton.style.transition = 'background-color 0.2s, color 0.2s';
-  function updateLangButtonLabel() {
-    langButton.textContent = uiLang === 'pt' ? 'PT' : 'EN';
-    langButton.title = uiLang === 'pt' ? 'Idioma: Português (clique para Inglês)' : 'Language: English (click for Portuguese)';
-    langButton.style.backgroundColor = uiLang === 'pt' ? '#ffcc00' : '#333';
-    langButton.style.color = uiLang === 'pt' ? '#000' : '#ffcc00';
-  }
-  updateLangButtonLabel();
-  langBar.appendChild(langButton);
-  leftColumn.appendChild(langBar);
+  asBody.appendChild(leftColumn);
 
   leftColumn.appendChild(statsContainer);
 
   forbiddenWords =
     JSON.parse(localStorage.getItem('forbiddenWords')) || forbiddenWords;
 
-  const forbiddenWordsInput = document.createElement('textarea');
-  forbiddenWordsInput.value = forbiddenWords.join(', ');
-  forbiddenWordsInput.style.width = '100%';
-  forbiddenWordsInput.style.height = '50px';
-  forbiddenWordsInput.style.borderRadius = '8px';
-  forbiddenWordsInput.style.padding = '5px';
-  forbiddenWordsInput.style.marginTop = '5px';
+  // ── Pause button ─────────────────────────────────────────
+  const pauseButton = document.createElement('button');
+  pauseButton.className = 'as-btn-primary ' + (isPaused ? 'as-btn-paused' : 'as-btn-running');
+  pauseButton.textContent = isPaused ? t('continue') : t('pause');
+  leftColumn.appendChild(pauseButton);
+
+  // ── Forbidden words card ─────────────────────────────────
+  const forbiddenWordsCard = document.createElement('div');
+  forbiddenWordsCard.className = 'as-card';
 
   const forbiddenWordsLabel = document.createElement('label');
   forbiddenWordsLabel.setAttribute('data-i18n', 'forbiddenWordsLabel');
   forbiddenWordsLabel.textContent = t('forbiddenWordsLabel');
-  leftColumn.appendChild(forbiddenWordsLabel);
-  leftColumn.appendChild(forbiddenWordsInput);
+  forbiddenWordsLabel.style.fontSize = '11px';
+  forbiddenWordsLabel.style.color = 'rgba(255,255,255,0.5)';
+  forbiddenWordsLabel.style.display = 'block';
+  forbiddenWordsLabel.style.marginBottom = '6px';
+  forbiddenWordsLabel.style.fontWeight = '600';
+  forbiddenWordsLabel.style.letterSpacing = '0.05em';
+  forbiddenWordsLabel.style.textTransform = 'uppercase';
+
+  const forbiddenWordsInput = document.createElement('textarea');
+  forbiddenWordsInput.value = forbiddenWords.join(', ');
+  forbiddenWordsInput.className = 'as-textarea';
+  forbiddenWordsInput.style.height = '52px';
+
+  forbiddenWordsCard.appendChild(forbiddenWordsLabel);
+  forbiddenWordsCard.appendChild(forbiddenWordsInput);
+  leftColumn.appendChild(forbiddenWordsCard);
 
   forbiddenWordsInput.addEventListener('input', () => {
     forbiddenWords = forbiddenWordsInput.value
       .split(',')
       .map((word) => word.trim())
       .filter((word) => word.length > 0);
-    localStorage.setItem('forbiddenWords', JSON.stringify(forbiddenWords)); // Salvar no localStorage
+    localStorage.setItem('forbiddenWords', JSON.stringify(forbiddenWords));
   });
 
-  const pauseButton = document.createElement('button');
-  pauseButton.textContent = isPaused ? t('continue') : t('pause');
-  pauseButton.style.padding = '10px';
-  pauseButton.style.borderRadius = '8px';
-  pauseButton.style.cursor = 'pointer';
-  pauseButton.style.backgroundColor = isPaused ? '#4caf50' : '#f44336';
-  pauseButton.style.color = 'white';
-  pauseButton.style.border = 'none';
-  pauseButton.style.fontWeight = 'bold';
-  pauseButton.style.transition = 'background-color 0.3s';
-  leftColumn.appendChild(pauseButton);
-
+  // ── Slider factory ────────────────────────────────────────
   const createSlider = (
     labelI18nKey,
     min,
@@ -416,17 +790,34 @@
     const sliderContainer = document.createElement('div');
     sliderContainer.style.display = 'flex';
     sliderContainer.style.flexDirection = 'column';
+    sliderContainer.style.gap = '6px';
+
+    const labelRow = document.createElement('div');
+    labelRow.style.display = 'flex';
+    labelRow.style.justifyContent = 'space-between';
+    labelRow.style.alignItems = 'center';
 
     const label = document.createElement('label');
     label.setAttribute('data-i18n', labelI18nKey);
     label.textContent = t(labelI18nKey);
-    label.style.marginBottom = '5px';
-    sliderContainer.appendChild(label);
+    label.style.fontSize = '11px';
+    label.style.color = 'rgba(255,255,255,0.5)';
+    label.style.fontWeight = '600';
+    label.style.letterSpacing = '0.05em';
+    label.style.textTransform = 'uppercase';
 
-    const valueDisplay = document.createElement('div');
-    valueDisplay.style.textAlign = 'right';
+    const valueDisplay = document.createElement('span');
+    valueDisplay.style.fontSize = '12px';
+    valueDisplay.style.color = '#fff';
+    valueDisplay.style.fontWeight = '600';
+    valueDisplay.style.background = 'rgba(255,255,255,0.08)';
+    valueDisplay.style.padding = '2px 8px';
+    valueDisplay.style.borderRadius = '20px';
     valueDisplay.textContent = `${(initialValue / 1000).toFixed(1)}s`;
-    sliderContainer.appendChild(valueDisplay);
+
+    labelRow.appendChild(label);
+    labelRow.appendChild(valueDisplay);
+    sliderContainer.appendChild(labelRow);
 
     const slider = document.createElement('input');
     slider.type = 'range';
@@ -434,7 +825,7 @@
     slider.max = max;
     slider.step = step;
     slider.value = initialValue;
-    slider.style.width = '100%';
+    slider.className = 'as-slider';
     slider.addEventListener('input', (e) => {
       const value = parseFloat(e.target.value);
       valueDisplay.textContent = `${(value / 1000).toFixed(1)}s`;
@@ -446,122 +837,75 @@
     return sliderContainer;
   };
 
-
   const profileWaitSlider = createSlider(
-    'profileWaitLabel',
-    100,
-    10000,
-    100,
-    profileOpenWait,
-    'profileOpenWait',
-    (value) => {
-      profileOpenWait = value;
-    }
+    'profileWaitLabel', 100, 10000, 100, profileOpenWait, 'profileOpenWait',
+    (value) => { profileOpenWait = value; }
   );
-
-  // Container com contorno para espera ao abrir perfil
   const profileWaitContainer = document.createElement('div');
-  profileWaitContainer.style.backgroundColor = '#2a2a2a';
-  profileWaitContainer.style.padding = '10px';
-  profileWaitContainer.style.borderRadius = '8px';
-  profileWaitContainer.style.border = '2px solid #2196f3';
-  profileWaitContainer.style.marginTop = '10px';
-  profileWaitContainer.style.display = 'flex';
-  profileWaitContainer.style.flexDirection = 'column';
-  profileWaitContainer.style.gap = '10px';
+  profileWaitContainer.className = 'as-card';
+  profileWaitContainer.style.borderColor = 'rgba(59,130,246,0.25)';
   profileWaitContainer.appendChild(profileWaitSlider);
   leftColumn.appendChild(profileWaitContainer);
 
   const intervalSlider = createSlider(
-    'intervalLabel',
-    100,
-    10000,
-    100,
-    interval,
-    'interval',
-    (value) => {
-      interval = value;
-    }
+    'intervalLabel', 100, 10000, 100, interval, 'interval',
+    (value) => { interval = value; }
   );
-
-  // Container com contorno para intervalo entre ações
   const intervalContainer = document.createElement('div');
-  intervalContainer.style.backgroundColor = '#2a2a2a';
-  intervalContainer.style.padding = '10px';
-  intervalContainer.style.borderRadius = '8px';
-  intervalContainer.style.border = '2px solid #2196f3';
-  intervalContainer.style.marginTop = '10px';
-  intervalContainer.style.display = 'flex';
-  intervalContainer.style.flexDirection = 'column';
-  intervalContainer.style.gap = '10px';
+  intervalContainer.className = 'as-card';
+  intervalContainer.style.borderColor = 'rgba(59,130,246,0.25)';
   intervalContainer.appendChild(intervalSlider);
   leftColumn.appendChild(intervalContainer);
 
 
 
-  // Seção de limite de likes
+  // ── Likes limiter card ───────────────────────────────────
   const likesLimitContainer = document.createElement('div');
-  likesLimitContainer.style.backgroundColor = '#2a2a2a';
-  likesLimitContainer.style.padding = '10px';
-  likesLimitContainer.style.borderRadius = '8px';
-  likesLimitContainer.style.border = '2px solid #ffcc00';
-  likesLimitContainer.style.marginTop = '10px';
+  likesLimitContainer.className = 'as-card';
+  likesLimitContainer.style.borderColor = 'rgba(255,204,0,0.2)';
   likesLimitContainer.style.display = 'flex';
   likesLimitContainer.style.flexDirection = 'column';
-  likesLimitContainer.style.gap = '10px';
+  likesLimitContainer.style.gap = '8px';
   leftColumn.appendChild(likesLimitContainer);
 
   const likesLimitTitle = document.createElement('div');
+  likesLimitTitle.className = 'as-section-title';
   likesLimitTitle.setAttribute('data-i18n', 'likesLimitTitle');
-  likesLimitTitle.textContent = t('likesLimitTitle');
-  likesLimitTitle.style.fontWeight = 'bold';
-  likesLimitTitle.style.color = '#ffcc00';
-  likesLimitTitle.style.marginBottom = '5px';
+  likesLimitTitle.innerHTML = '<span style="color:#ffcc00">⚡</span><span data-i18n="likesLimitTitle" style="color:rgba(255,255,255,0.65)">' + t('likesLimitTitle') + '</span>';
   likesLimitContainer.appendChild(likesLimitTitle);
 
-  // Container para checkbox e input na mesma linha
   const likesLimitRow = document.createElement('div');
   likesLimitRow.style.display = 'flex';
   likesLimitRow.style.alignItems = 'center';
-  likesLimitRow.style.gap = '10px';
+  likesLimitRow.style.gap = '8px';
   likesLimitContainer.appendChild(likesLimitRow);
 
   const enableLikesLimitToggle = createToggle(likesLimitEnabled);
 
-  // Texto dinâmico para o limitador de likes
   const likesLimitStatusText = document.createElement('span');
+  likesLimitStatusText.className = likesLimitEnabled ? 'as-status-enabled' : 'as-status-disabled';
   likesLimitStatusText.textContent = likesLimitEnabled ? t('enabled') : t('disabled');
-  likesLimitStatusText.style.color = likesLimitEnabled ? '#4caf50' : '#f44336';
-  likesLimitStatusText.style.fontWeight = 'bold';
-  likesLimitStatusText.style.marginLeft = '5px';
 
   const likesLimitInput = document.createElement('input');
   likesLimitInput.type = 'number';
   likesLimitInput.min = '1';
   likesLimitInput.step = '1';
   likesLimitInput.value = (likesLimit !== null && likesLimit > 0) ? likesLimit : '';
-  likesLimitInput.style.padding = '5px';
-  likesLimitInput.style.borderRadius = '5px';
-  likesLimitInput.style.border = '2px solid #ffcc00';
-  likesLimitInput.style.boxSizing = 'border-box';
-  likesLimitInput.style.width = '80px';
+  likesLimitInput.className = 'as-input';
+  likesLimitInput.style.width = '72px';
   likesLimitInput.placeholder = t('limitPlaceholder');
+
+  const resetCounterButton = document.createElement('button');
+  resetCounterButton.setAttribute('data-i18n', 'resetCounter');
+  resetCounterButton.textContent = t('resetCounter');
+  resetCounterButton.className = 'as-btn-secondary';
+  resetCounterButton.style.marginLeft = 'auto';
 
   likesLimitRow.appendChild(enableLikesLimitToggle.element);
   likesLimitRow.appendChild(likesLimitStatusText);
   likesLimitRow.appendChild(likesLimitInput);
-
-  // Botão para resetar contador
-  const resetCounterButton = document.createElement('button');
-  resetCounterButton.setAttribute('data-i18n', 'resetCounter');
-  resetCounterButton.textContent = t('resetCounter');
-  resetCounterButton.style.padding = '8px';
-  resetCounterButton.style.borderRadius = '5px';
-  resetCounterButton.style.cursor = 'pointer';
-  resetCounterButton.style.backgroundColor = '#4a4a4a';
-  resetCounterButton.style.color = 'white';
-  resetCounterButton.style.border = 'none';
-  likesLimitContainer.appendChild(resetCounterButton);
+  likesLimitRow.appendChild(resetCounterButton);
+  likesLimitContainer.appendChild(likesLimitRow);
 
   // Event listeners para limite de likes
   enableLikesLimitToggle.addEventListener('change', () => {
@@ -569,9 +913,8 @@
     localStorage.setItem('likesLimitEnabled', likesLimitEnabled);
     likesLimitInput.disabled = !likesLimitEnabled;
 
-    // Atualizar texto dinâmico
     likesLimitStatusText.textContent = likesLimitEnabled ? t('enabled') : t('disabled');
-    likesLimitStatusText.style.color = likesLimitEnabled ? '#4caf50' : '#f44336';
+    likesLimitStatusText.className = likesLimitEnabled ? 'as-status-enabled' : 'as-status-disabled';
 
     if (likesLimitEnabled) {
       if (likesLimitInput.value) {
@@ -617,28 +960,34 @@
   // Inicializar estado do input
   likesLimitInput.disabled = !likesLimitEnabled;
 
-  // Seção Desbloquear fotos em Likes (unblur)
+  // ── Unblur likes card ────────────────────────────────────
   const unblurLikesContainer = document.createElement('div');
-  unblurLikesContainer.style.backgroundColor = '#2a2a2a';
-  unblurLikesContainer.style.padding = '10px';
-  unblurLikesContainer.style.borderRadius = '8px';
-  unblurLikesContainer.style.border = '2px solid #9c27b0';
-  unblurLikesContainer.style.marginTop = '10px';
-  unblurLikesContainer.style.display = 'flex';
-  unblurLikesContainer.style.flexDirection = 'column';
-  unblurLikesContainer.style.gap = '8px';
+  unblurLikesContainer.className = 'as-card';
+  unblurLikesContainer.style.borderColor = 'rgba(167,139,250,0.25)';
   leftColumn.appendChild(unblurLikesContainer);
 
   const unblurLikesToggle = createToggle(unblurLikesEnabled);
 
   const unblurLikesLabel = document.createElement('label');
   unblurLikesLabel.setAttribute('data-i18n', 'unblurLikesLabel');
-  unblurLikesLabel.textContent = t('unblurLikesLabel');
   unblurLikesLabel.style.cursor = 'pointer';
   unblurLikesLabel.style.display = 'flex';
   unblurLikesLabel.style.alignItems = 'center';
   unblurLikesLabel.style.gap = '8px';
-  unblurLikesLabel.prepend(unblurLikesToggle.element);
+  unblurLikesLabel.style.fontSize = '12px';
+  unblurLikesLabel.style.color = 'rgba(255,255,255,0.75)';
+
+  const unblurIcon = document.createElement('span');
+  unblurIcon.textContent = '👁';
+  unblurIcon.style.fontSize = '14px';
+
+  const unblurLabelText = document.createElement('span');
+  unblurLabelText.setAttribute('data-i18n', 'unblurLikesLabel');
+  unblurLabelText.textContent = t('unblurLikesLabel');
+
+  unblurLikesLabel.appendChild(unblurLikesToggle.element);
+  unblurLikesLabel.appendChild(unblurIcon);
+  unblurLikesLabel.appendChild(unblurLabelText);
   unblurLikesContainer.appendChild(unblurLikesLabel);
 
   unblurLikesToggle.addEventListener('change', () => {
@@ -647,115 +996,55 @@
     if (unblurLikesEnabled) unblurLikesCards();
   });
 
-  // Seção de filtro por altura
+  // ── Height filter card ───────────────────────────────────
   const heightFilterContainer = document.createElement('div');
-  heightFilterContainer.style.backgroundColor = '#2a2a2a';
-  heightFilterContainer.style.padding = '10px';
-  heightFilterContainer.style.borderRadius = '8px';
-  heightFilterContainer.style.border = '2px solid #ffcc00';
-  heightFilterContainer.style.marginTop = '10px';
+  heightFilterContainer.className = 'as-card';
+  heightFilterContainer.style.borderColor = 'rgba(255,204,0,0.2)';
   heightFilterContainer.style.display = 'flex';
   heightFilterContainer.style.flexDirection = 'column';
-  heightFilterContainer.style.gap = '10px';
+  heightFilterContainer.style.gap = '8px';
   leftColumn.appendChild(heightFilterContainer);
 
-  // Container para título e tooltip
+  // Título + tooltip
   const heightFilterTitleRow = document.createElement('div');
-  heightFilterTitleRow.style.display = 'flex';
-  heightFilterTitleRow.style.alignItems = 'center';
-  heightFilterTitleRow.style.gap = '8px';
-  heightFilterTitleRow.style.marginBottom = '5px';
+  heightFilterTitleRow.className = 'as-section-title';
 
-  const heightFilterTitle = document.createElement('div');
-  heightFilterTitle.setAttribute('data-i18n', 'heightFilterTitle');
-  heightFilterTitle.textContent = t('heightFilterTitle');
-  heightFilterTitle.style.fontWeight = 'bold';
-  heightFilterTitle.style.color = '#ffcc00';
-  heightFilterTitleRow.appendChild(heightFilterTitle);
+  const heightFilterTitle = document.createElement('span');
+  heightFilterTitle.innerHTML = '<span style="color:#ffcc00">📏</span><span data-i18n="heightFilterTitle" style="color:rgba(255,255,255,0.65)">' + t('heightFilterTitle') + '</span>';
+  heightFilterTitle.setAttribute('data-i18n-parent', 'heightFilterTitle');
 
-  // Ícone de interrogação para tooltip
-  const tooltipIcon = document.createElement('div');
+  // Tooltip com nova estrutura CSS
+  const tooltipWrap = document.createElement('span');
+  tooltipWrap.className = 'as-tooltip-wrap';
+
+  const tooltipIcon = document.createElement('span');
+  tooltipIcon.className = 'as-tooltip-icon';
   tooltipIcon.textContent = '?';
-  tooltipIcon.style.width = '20px';
-  tooltipIcon.style.height = '20px';
-  tooltipIcon.style.borderRadius = '50%';
-  tooltipIcon.style.backgroundColor = '#ffcc00';
-  tooltipIcon.style.color = '#000';
-  tooltipIcon.style.display = 'flex';
-  tooltipIcon.style.alignItems = 'center';
-  tooltipIcon.style.justifyContent = 'center';
-  tooltipIcon.style.fontSize = '12px';
-  tooltipIcon.style.fontWeight = 'bold';
-  tooltipIcon.style.cursor = 'help';
-  tooltipIcon.style.position = 'relative';
 
-  // Tooltip customizado
   const tooltip = document.createElement('div');
+  tooltip.className = 'as-tooltip-popup';
   tooltip.setAttribute('data-i18n', 'heightTooltip');
   tooltip.textContent = t('heightTooltip');
-  tooltip.style.position = 'absolute';
-  tooltip.style.bottom = '100%';
-  tooltip.style.left = '50%';
-  tooltip.style.transform = 'translateX(-50%)';
-  tooltip.style.width = '250px';
-  tooltip.style.padding = '10px';
-  tooltip.style.backgroundColor = 'rgba(0, 0, 0, 0.95)';
-  tooltip.style.color = 'white';
-  tooltip.style.borderRadius = '8px';
-  tooltip.style.border = '2px solid #ffcc00';
-  tooltip.style.fontSize = '12px';
-  tooltip.style.lineHeight = '1.4';
-  tooltip.style.zIndex = '10001';
-  tooltip.style.opacity = '0';
-  tooltip.style.visibility = 'hidden';
-  tooltip.style.transition = 'opacity 0.3s, visibility 0.3s';
-  tooltip.style.marginBottom = '5px';
-  tooltip.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3)';
 
-  // Seta do tooltip
-  const tooltipArrow = document.createElement('div');
-  tooltipArrow.style.position = 'absolute';
-  tooltipArrow.style.bottom = '-8px';
-  tooltipArrow.style.left = '50%';
-  tooltipArrow.style.transform = 'translateX(-50%)';
-  tooltipArrow.style.width = '0';
-  tooltipArrow.style.height = '0';
-  tooltipArrow.style.borderLeft = '8px solid transparent';
-  tooltipArrow.style.borderRight = '8px solid transparent';
-  tooltipArrow.style.borderTop = '8px solid #ffcc00';
-  tooltip.appendChild(tooltipArrow);
+  tooltipWrap.appendChild(tooltipIcon);
+  tooltipWrap.appendChild(tooltip);
 
-  tooltipIcon.appendChild(tooltip);
-
-  // Event listeners para mostrar/esconder tooltip
-  tooltipIcon.addEventListener('mouseenter', () => {
-    tooltip.style.opacity = '1';
-    tooltip.style.visibility = 'visible';
-  });
-
-  tooltipIcon.addEventListener('mouseleave', () => {
-    tooltip.style.opacity = '0';
-    tooltip.style.visibility = 'hidden';
-  });
-
-  heightFilterTitleRow.appendChild(tooltipIcon);
+  heightFilterTitleRow.appendChild(heightFilterTitle);
+  heightFilterTitleRow.appendChild(tooltipWrap);
   heightFilterContainer.appendChild(heightFilterTitleRow);
 
-  // Container para checkbox, input e select na mesma linha
+  // Controles de filtro de altura
   const heightFilterRow = document.createElement('div');
   heightFilterRow.style.display = 'flex';
   heightFilterRow.style.alignItems = 'center';
-  heightFilterRow.style.gap = '10px';
+  heightFilterRow.style.gap = '8px';
   heightFilterContainer.appendChild(heightFilterRow);
 
   const enableHeightFilterToggle = createToggle(heightFilterEnabled);
 
-  // Texto dinâmico para o limitador de altura
   const heightFilterStatusText = document.createElement('span');
+  heightFilterStatusText.className = heightFilterEnabled ? 'as-status-enabled' : 'as-status-disabled';
   heightFilterStatusText.textContent = heightFilterEnabled ? t('enabled') : t('disabled');
-  heightFilterStatusText.style.color = heightFilterEnabled ? '#4caf50' : '#f44336';
-  heightFilterStatusText.style.fontWeight = 'bold';
-  heightFilterStatusText.style.marginLeft = '5px';
 
   const heightInput = document.createElement('input');
   heightInput.type = 'number';
@@ -763,17 +1052,13 @@
   heightInput.max = '250';
   heightInput.step = '1';
   heightInput.value = heightThreshold;
-  heightInput.style.padding = '5px';
-  heightInput.style.borderRadius = '5px';
-  heightInput.style.border = '2px solid #ffcc00';
-  heightInput.style.boxSizing = 'border-box';
-  heightInput.style.width = '80px';
+  heightInput.className = 'as-input';
+  heightInput.style.width = '70px';
   heightInput.placeholder = t('heightPlaceholder');
 
   const heightConditionSelect = document.createElement('select');
-  heightConditionSelect.style.padding = '5px';
-  heightConditionSelect.style.borderRadius = '5px';
-  heightConditionSelect.style.width = '100px';
+  heightConditionSelect.className = 'as-select';
+  heightConditionSelect.style.flex = '1';
 
   const optionGreater = document.createElement('option');
   optionGreater.value = 'greater';
@@ -796,12 +1081,8 @@
   enableHeightFilterToggle.addEventListener('change', () => {
     heightFilterEnabled = enableHeightFilterToggle.checked;
     localStorage.setItem('heightFilterEnabled', heightFilterEnabled);
-
-    // Atualizar texto dinâmico
     heightFilterStatusText.textContent = heightFilterEnabled ? t('enabled') : t('disabled');
-    heightFilterStatusText.style.color = heightFilterEnabled ? '#4caf50' : '#f44336';
-
-    // Ativar/desativar inputs
+    heightFilterStatusText.className = heightFilterEnabled ? 'as-status-enabled' : 'as-status-disabled';
     heightInput.disabled = !heightFilterEnabled;
     heightConditionSelect.disabled = !heightFilterEnabled;
   });
@@ -816,71 +1097,83 @@
     localStorage.setItem('heightCondition', heightCondition);
   });
 
-  // Inicializar estado dos inputs
   heightInput.disabled = !heightFilterEnabled;
   heightConditionSelect.disabled = !heightFilterEnabled;
 
+  // ── Pause button event ───────────────────────────────────
   pauseButton.addEventListener('click', () => {
     isPaused = !isPaused;
     pauseButton.textContent = isPaused ? t('continue') : t('pause');
-    // Mudar cor dinamicamente: verde quando ativo, vermelho quando pausado
-    if (isPaused) {
-      pauseButton.style.backgroundColor = '#4caf50';
-    } else {
-      pauseButton.style.backgroundColor = '#f44336';
-    }
+    pauseButton.className = 'as-btn-primary ' + (isPaused ? 'as-btn-paused' : 'as-btn-running');
+    asStatusDot.className = 'as-status-dot ' + (isPaused ? 'paused' : 'running');
+    asStatusText.textContent = isPaused ? '⏸' : '▶';
+    pillDot.className = 'as-status-dot ' + (isPaused ? 'paused' : 'running');
     localStorage.setItem('autoswipePaused', String(isPaused));
   });
 
-  // Criar container para informações (lado direito)
+  // ── Right column ─────────────────────────────────────────
   const rightColumn = document.createElement('div');
   rightColumn.style.flex = '1';
   rightColumn.style.display = 'flex';
   rightColumn.style.flexDirection = 'column';
-  rightColumn.style.gap = '10px';
+  rightColumn.style.gap = '8px';
   rightColumn.style.overflowY = 'auto';
   rightColumn.style.maxHeight = '100%';
-  container.appendChild(rightColumn);
+  asBody.appendChild(rightColumn);
 
-  // Container de Nome e Idade
+  // ── Name/age card ─────────────────────────────────────────
   const nameAgeContainer = document.createElement('div');
-  nameAgeContainer.style.padding = '10px';
-  nameAgeContainer.style.backgroundColor = '#1c1c1c';
-  nameAgeContainer.style.borderRadius = '8px';
-  nameAgeContainer.style.color = '#ffcc00';
-  nameAgeContainer.style.marginTop = '10px';
-  nameAgeContainer.style.display = 'flex';
-  nameAgeContainer.style.flexDirection = 'column';
-  nameAgeContainer.style.gap = '5px';
-  // Inicializar com valores do localStorage se existirem
+  nameAgeContainer.className = 'as-card';
+  nameAgeContainer.style.borderColor = 'rgba(251,146,60,0.25)';
+
   const initialName = (!currentProfileName || currentProfileName === 'Não disponível') ? t('notAvailable') : currentProfileName;
   const initialAge = (!currentProfileAge || currentProfileAge === 'Não disponível') ? t('notAvailable') : currentProfileAge;
-  nameAgeContainer.textContent = formatT('nameAgeFormat', initialName, initialAge);
+
+  const nameDisplay = document.createElement('div');
+  nameDisplay.id = 'as-name-display';
+  nameDisplay.style.fontSize = '15px';
+  nameDisplay.style.fontWeight = '700';
+  nameDisplay.style.color = '#fff';
+  nameDisplay.style.marginBottom = '2px';
+
+  const nameText = document.createElement('span');
+  nameText.textContent = initialName;
+  const ageBadge = document.createElement('span');
+  ageBadge.style.cssText = 'display:inline-block;background:rgba(251,146,60,0.18);border:1px solid rgba(251,146,60,0.32);color:#fb923c;font-size:11px;font-weight:600;padding:1px 7px;border-radius:20px;margin-left:6px;vertical-align:middle;';
+  ageBadge.textContent = initialAge;
+  nameDisplay.appendChild(nameText);
+  nameDisplay.appendChild(ageBadge);
+  nameAgeContainer.appendChild(nameDisplay);
   rightColumn.appendChild(nameAgeContainer);
 
-  // Criação do contêiner de informações do perfil
+  // ── Profile info card ─────────────────────────────────────
+  const profileInfoCard = document.createElement('div');
+  profileInfoCard.className = 'as-card';
+  profileInfoCard.style.borderColor = 'rgba(251,146,60,0.15)';
+
+  const profileInfoTitle = document.createElement('div');
+  profileInfoTitle.className = 'as-section-title';
+  profileInfoTitle.style.marginBottom = '8px';
+  profileInfoTitle.innerHTML = '<span style="opacity:0.5;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.4)">Profile</span>';
+  profileInfoCard.appendChild(profileInfoTitle);
+
   const profileInfoContainer = document.createElement('div');
-  profileInfoContainer.style.padding = '10px';
-  profileInfoContainer.style.backgroundColor = '#1c1c1c';
-  profileInfoContainer.style.borderRadius = '8px';
-  profileInfoContainer.style.color = '#ffcc00';
-  profileInfoContainer.style.marginTop = '10px';
   profileInfoContainer.style.display = 'flex';
   profileInfoContainer.style.flexDirection = 'column';
-  profileInfoContainer.style.gap = '5px';
-  rightColumn.appendChild(profileInfoContainer);
+  profileInfoCard.appendChild(profileInfoContainer);
+  rightColumn.appendChild(profileInfoCard);
 
-  // Função para criar cada linha de informação
+  // ── Função para criar cada linha de informação ────────────
   function createInfoRow(labelKey, value) {
     const row = document.createElement('div');
-    row.style.display = 'flex';
-    row.style.justifyContent = 'space-between';
+    row.className = 'as-info-row';
 
     const labelSpan = document.createElement('span');
-    labelSpan.textContent = t(labelKey) + ':';
-    labelSpan.style.fontWeight = 'bold';
+    labelSpan.className = 'as-info-label';
+    labelSpan.textContent = t(labelKey);
 
     const valueSpan = document.createElement('span');
+    valueSpan.className = 'as-info-value';
     valueSpan.textContent = value;
 
     row.appendChild(labelSpan);
@@ -1310,225 +1603,228 @@
     return { shouldDislike, reason };
   }
 
+  // ── About me element ──────────────────────────────────────
   const profileInfo = document.createElement('div');
-  profileInfo.style.padding = '10px';
-  profileInfo.style.backgroundColor = '#1c1c1c';
-  profileInfo.style.borderRadius = '8px';
-  profileInfo.style.color = '#ffcc00';
-  profileInfo.textContent = `${t('aboutMe')}: ${t('notAvailable')}`;
-  rightColumn.appendChild(profileInfo);
+  profileInfo.className = 'as-info-row';
+  profileInfo.style.borderBottom = 'none';
+  profileInfo.style.padding = '6px 0 2px';
+  profileInfo.style.flexDirection = 'column';
+  profileInfo.style.gap = '3px';
 
-  // Card de último dislike dentro do modal
+  const profileInfoLabel = document.createElement('span');
+  profileInfoLabel.className = 'as-info-label';
+  profileInfoLabel.setAttribute('data-i18n-prefix', 'aboutMe');
+  profileInfoLabel.textContent = t('aboutMe');
+
+  const profileInfoText = document.createElement('span');
+  profileInfoText.style.color = 'rgba(255,255,255,0.7)';
+  profileInfoText.style.fontSize = '12px';
+  profileInfoText.style.lineHeight = '1.5';
+  profileInfoText.style.wordBreak = 'break-word';
+  profileInfoText.textContent = t('notAvailable');
+
+  profileInfo.appendChild(profileInfoLabel);
+  profileInfo.appendChild(profileInfoText);
+  profileInfoCard.appendChild(profileInfo);
+
+  // ── Last dislike card ─────────────────────────────────────
   const lastDislikeCard = document.createElement('div');
   lastDislikeCard.id = 'autoswipe-last-dislike-card';
-  lastDislikeCard.style.width = '100%';
-  lastDislikeCard.style.backgroundColor = 'rgba(139, 0, 0, 0.95)';
-  lastDislikeCard.style.color = 'white';
-  lastDislikeCard.style.padding = '15px';
-  lastDislikeCard.style.borderRadius = '8px';
-  lastDislikeCard.style.fontFamily = 'Arial, sans-serif';
-  lastDislikeCard.style.fontSize = '13px';
   lastDislikeCard.style.display = 'none';
-  lastDislikeCard.style.border = '2px solid #f44336';
-  lastDislikeCard.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3)';
-  lastDislikeCard.style.marginTop = '10px';
   rightColumn.appendChild(lastDislikeCard);
+
+  // ── Floating pill (modo minimizado) ──────────────────────
+  const floatingPill = document.createElement('div');
+  floatingPill.id = 'as-floating-pill';
+  floatingPill.style.cssText = `
+    position:fixed; bottom:20px; right:20px; z-index:1001;
+    background:linear-gradient(135deg,rgba(15,15,25,0.97),rgba(20,18,35,0.97));
+    border:1px solid rgba(255,255,255,0.1); border-radius:40px;
+    padding:8px 14px 8px 10px;
+    display:none; align-items:center; gap:8px;
+    box-shadow:0 4px 20px rgba(0,0,0,0.6);
+    cursor:pointer; user-select:none;
+    font-family:'Segoe UI',system-ui,sans-serif; font-size:12px; color:#fff;
+    transition:box-shadow 0.2s, transform 0.15s;
+    backdrop-filter:blur(16px);
+  `;
+  floatingPill.title = 'Expandir AutoSwipe';
+
+  const pillDot = document.createElement('span');
+  pillDot.className = 'as-status-dot ' + (isPaused ? 'paused' : 'running');
+  pillDot.style.margin = '0 2px';
+
+  const pillEmoji = document.createElement('span');
+  pillEmoji.textContent = '🔥';
+  pillEmoji.style.fontSize = '14px';
+
+  const pillText = document.createElement('span');
+  pillText.style.fontWeight = '600';
+  pillText.style.letterSpacing = '0.02em';
+  pillText.textContent = 'AutoSwipe';
+
+  const pillExpand = document.createElement('span');
+  pillExpand.style.cssText = 'font-size:10px;opacity:0.5;margin-left:2px;';
+  pillExpand.textContent = '⬆';
+
+  floatingPill.appendChild(pillDot);
+  floatingPill.appendChild(pillEmoji);
+  floatingPill.appendChild(pillText);
+  floatingPill.appendChild(pillExpand);
+  document.body.appendChild(floatingPill);
+
+  floatingPill.addEventListener('mouseenter', () => {
+    floatingPill.style.boxShadow = '0 6px 28px rgba(0,0,0,0.75)';
+    floatingPill.style.transform = 'scale(1.04)';
+  });
+  floatingPill.addEventListener('mouseleave', () => {
+    floatingPill.style.boxShadow = '0 4px 20px rgba(0,0,0,0.6)';
+    floatingPill.style.transform = 'scale(1)';
+  });
+
+  // Drag da pill
+  let pillDragging = false, pillDx = 0, pillDy = 0;
+  floatingPill.addEventListener('mousedown', (e) => {
+    pillDragging = true;
+    pillDx = e.clientX - floatingPill.getBoundingClientRect().left;
+    pillDy = e.clientY - floatingPill.getBoundingClientRect().top;
+    e.stopPropagation();
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!pillDragging) return;
+    floatingPill.style.left = (e.clientX - pillDx) + 'px';
+    floatingPill.style.top = (e.clientY - pillDy) + 'px';
+    floatingPill.style.right = 'auto';
+    floatingPill.style.bottom = 'auto';
+  });
+  document.addEventListener('mouseup', () => { pillDragging = false; });
+
+  // Botão esconder no header
+  const asHideBtn = document.createElement('button');
+  asHideBtn.id = 'as-hide-btn';
+  asHideBtn.title = 'Esconder painel';
+  asHideBtn.textContent = '✕';
+  asHideBtn.style.cssText = `
+    width:22px;height:22px;border-radius:50%;border:none;
+    background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.5);
+    font-size:11px;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:background 0.2s,color 0.2s;padding:0;flex-shrink:0;
+  `;
+  asHideBtn.addEventListener('mouseenter', () => { asHideBtn.style.background = 'rgba(239,68,68,0.3)'; asHideBtn.style.color = '#fff'; });
+  asHideBtn.addEventListener('mouseleave', () => { asHideBtn.style.background = 'rgba(255,255,255,0.08)'; asHideBtn.style.color = 'rgba(255,255,255,0.5)'; });
+  asHideBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    container.style.display = 'none';
+    floatingPill.style.display = 'flex';
+  });
+  asHeader.insertBefore(asHideBtn, asMinimizeBtn);
+
+  // Expandir ao clicar na pill
+  floatingPill.addEventListener('click', () => {
+    if (pillDragging) return;
+    container.style.display = 'flex';
+    floatingPill.style.display = 'none';
+  });
 
   function updateLikeCounter() {
     if (likesLimitEnabled && likesLimit !== null) {
       likeCounter.textContent = formatT('likesLimitFormat', likesCount, likesLimit);
-      // Destacar quando próximo do limite (80% ou mais)
       if (likesCount >= likesLimit * 0.8) {
         likeCounter.style.color = '#ffcc00';
+        likeCounterContainer.style.borderColor = 'rgba(255,204,0,0.35)';
         if (likesCount >= likesLimit) {
-          likeCounter.style.color = '#ff6b6b';
+          likeCounter.style.color = '#f87171';
+          likeCounterContainer.style.borderColor = 'rgba(248,113,113,0.35)';
         }
       } else {
-        likeCounter.style.color = '#4caf50';
+        likeCounter.style.color = '#4ade80';
+        likeCounterContainer.style.borderColor = 'rgba(74,222,128,0.2)';
       }
     } else {
-      likeCounter.textContent = formatT('likesFormat', likesCount);
-      likeCounter.style.color = '#4caf50';
+      likeCounter.textContent = String(likesCount);
+      likeCounter.style.color = '#4ade80';
+      likeCounterContainer.style.borderColor = 'rgba(74,222,128,0.2)';
     }
+    likeCounterLabel.textContent = (likesLimitEnabled && likesLimit !== null)
+      ? `${t('likes')} / ${likesLimit}`
+      : t('likes');
   }
 
   function updateDislikeCounter() {
-    dislikeCounter.textContent = formatT('dislikesFormat', dislikesCount);
-    dislikeCounter.style.color = '#f44336';
+    dislikeCounter.textContent = String(dislikesCount);
   }
 
   updateLikeCounter();
   updateDislikeCounter();
 
-  function updateProfileInfo(text) {
-    const extractedInfo = extractProfileInfo();
-
-    if (!extractedInfo) {
-      return;
-    }
-
-    lastExtractedInfo = extractedInfo;
-    lastAboutMeText = text || t('notAvailable');
-
-    // Limpa o contêiner antes de atualizar
+  function _renderProfileInfoRows(extractedInfo) {
     profileInfoContainer.innerHTML = '';
-
-    // Adiciona as informações capturadas
     let hasInfo = false;
-
-    if (extractedInfo.distance) {
-      profileInfoContainer.appendChild(createInfoRow('distance', extractedInfo.distance));
-      hasInfo = true;
-    }
-    if (extractedInfo.height) {
-      profileInfoContainer.appendChild(createInfoRow('height', extractedInfo.height));
-      hasInfo = true;
-    }
-    if (extractedInfo.profession) {
-      profileInfoContainer.appendChild(createInfoRow('profession', extractedInfo.profession));
-      hasInfo = true;
-    }
-    if (extractedInfo.genderPronoun) {
-      profileInfoContainer.appendChild(createInfoRow('pronouns', extractedInfo.genderPronoun));
-      hasInfo = true;
-    }
-    if (extractedInfo.languages) {
-      profileInfoContainer.appendChild(createInfoRow('languages', extractedInfo.languages));
-      hasInfo = true;
-    }
-
-    // Se nenhuma informação foi encontrada, mostrar mensagem
+    if (extractedInfo.distance) { profileInfoContainer.appendChild(createInfoRow('distance', extractedInfo.distance)); hasInfo = true; }
+    if (extractedInfo.height) { profileInfoContainer.appendChild(createInfoRow('height', extractedInfo.height)); hasInfo = true; }
+    if (extractedInfo.profession) { profileInfoContainer.appendChild(createInfoRow('profession', extractedInfo.profession)); hasInfo = true; }
+    if (extractedInfo.genderPronoun) { profileInfoContainer.appendChild(createInfoRow('pronouns', extractedInfo.genderPronoun)); hasInfo = true; }
+    if (extractedInfo.languages) { profileInfoContainer.appendChild(createInfoRow('languages', extractedInfo.languages)); hasInfo = true; }
     if (!hasInfo) {
       const noInfo = document.createElement('div');
+      noInfo.style.cssText = 'color:rgba(248,113,113,0.8);font-size:11px;padding:4px 0;';
       noInfo.textContent = t('noInfoExtracted');
-      noInfo.style.color = '#ff6b6b';
       profileInfoContainer.appendChild(noInfo);
     }
-
-    // Atualiza a seção "Sobre mim"
-    const aboutMeText = text || t('notAvailable');
-    profileInfo.textContent = `${t('aboutMe')}: ${aboutMeText}`;
-
-    // Destacar se é muito curto
-    const notAvail = t('notAvailable');
-    if (aboutMeText.length < 10 && aboutMeText !== notAvail && aboutMeText !== 'Não disponível') {
-      profileInfo.style.color = '#ff6b6b';
-    } else {
-      profileInfo.style.color = '#ffcc00';
-    }
-
-    // Atualizar container de Nome e Idade (exibir traduzido quando for sentinela)
-    const name = (!currentProfileName || currentProfileName === 'Não disponível') ? t('notAvailable') : currentProfileName;
-    const age = (!currentProfileAge || currentProfileAge === 'Não disponível') ? t('notAvailable') : currentProfileAge;
-    nameAgeContainer.textContent = formatT('nameAgeFormat', name, age);
   }
 
-  // Função para atualizar apenas o nome e idade
+  function updateProfileInfo(text) {
+    const extractedInfo = extractProfileInfo();
+    if (!extractedInfo) return;
+    lastExtractedInfo = extractedInfo;
+    lastAboutMeText = text || t('notAvailable');
+    _renderProfileInfoRows(extractedInfo);
+    const aboutMeText = text || t('notAvailable');
+    profileInfoText.textContent = aboutMeText;
+    profileInfoLabel.textContent = t('aboutMe');
+    const name = (!currentProfileName || currentProfileName === 'Não disponível') ? t('notAvailable') : currentProfileName;
+    const age = (!currentProfileAge || currentProfileAge === 'Não disponível') ? t('notAvailable') : currentProfileAge;
+    nameText.textContent = name;
+    ageBadge.textContent = age;
+  }
+
   function updateNameAge() {
     const name = (!currentProfileName || currentProfileName === 'Não disponível') ? t('notAvailable') : currentProfileName;
     const age = (!currentProfileAge || currentProfileAge === 'Não disponível') ? t('notAvailable') : currentProfileAge;
-    nameAgeContainer.textContent = formatT('nameAgeFormat', name, age);
+    nameText.textContent = name;
+    ageBadge.textContent = age;
   }
 
   function updateLastDislikeCard() {
-    // Garantir que o card esteja no DOM (dentro do container)
     let card = document.getElementById('autoswipe-last-dislike-card');
     if (!card) {
-      // Se o card não existir, usar a referência global
       card = lastDislikeCard;
-      // Se o card não estiver no container, adicioná-lo
-      if (container && !container.contains(card)) {
-        container.appendChild(card);
-      }
+      if (container && !container.contains(card)) rightColumn.appendChild(card);
     }
+    if (!lastDislikeTimestamp) { if (card) card.style.display = 'none'; return; }
 
-    if (!lastDislikeTimestamp) {
-      if (card) {
-        card.style.display = 'none';
-      }
-      return;
-    }
-
-    // Log de debug
-    console.log('Atualizando card de último dislike:', {
-      timestamp: lastDislikeTimestamp,
-      name: lastDislikeProfileName,
-      age: lastDislikeProfileAge,
-      reason: lastDislikeReason,
-      likesCount: lastDislikeLikesCount,
-      currentLikes: likesCount
-    });
-
-    // Calcular minutos atrás
     const now = new Date();
-    const diffMs = now - lastDislikeTimestamp;
-    const diffMinutes = Math.floor(diffMs / 60000);
+    const diffMinutes = Math.floor((now - lastDislikeTimestamp) / 60000);
     const minutesText = diffMinutes === 0 ? t('lessThanMinute') :
-      diffMinutes === 1 ? t('minuteAgo') :
-        formatT('minutesAgo', diffMinutes);
-
-    // Calcular likes atrás
+      diffMinutes === 1 ? t('minuteAgo') : formatT('minutesAgo', diffMinutes);
     const likesSinceDislike = likesCount - lastDislikeLikesCount;
     const likesText = likesSinceDislike === 0 ? '0 likes' :
-      likesSinceDislike === 1 ? t('likeAgo') :
-        formatT('likesAgo', likesSinceDislike);
-
-    // Montar conteúdo do card
-    const nameAgeText = lastDislikeProfileName && lastDislikeProfileAge ?
-      `${lastDislikeProfileName}, ${lastDislikeProfileAge}` :
-      (lastDislikeProfileName || t('nameNotAvailable'));
-
+      likesSinceDislike === 1 ? t('likeAgo') : formatT('likesAgo', likesSinceDislike);
+    const nameAgeText = lastDislikeProfileName && lastDislikeProfileAge
+      ? `${lastDislikeProfileName}, ${lastDislikeProfileAge}`
+      : (lastDislikeProfileName || t('nameNotAvailable'));
     const reasonText = lastDislikeReason || t('notSpecified');
 
-    // Atualizar conteúdo do card
     if (card) {
       card.innerHTML = `
-        <div style="font-weight: bold; margin-bottom: 10px; color: #ffcc00; font-size: 14px;">
-          ${t('lastDislikeTitle')}
-        </div>
-        <div style="margin-bottom: 8px; font-weight: bold; font-size: 15px;">
-          ${nameAgeText}
-        </div>
-        <div style="margin-bottom: 8px;">
-          ${t('reason')}: ${reasonText}
-        </div>
-        <div style="margin-bottom: 5px; color: #4caf50;">
-          ${likesText} ${t('ago')}
-        </div>
-        <div style="color: #4caf50;">
-          ${minutesText} ${t('ago')}
-        </div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(248,113,113,0.7);margin-bottom:6px">${t('lastDislikeTitle')}</div>
+        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:5px">${nameAgeText}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.55);margin-bottom:4px">${t('reason')}: <span style="color:rgba(255,255,255,0.8)">${reasonText}</span></div>
+        <div style="font-size:11px;color:rgba(74,222,128,0.7)">${likesText} ${t('ago')} · ${minutesText} ${t('ago')}</div>
       `;
-
-      // Garantir que o card seja exibido
       card.style.display = 'block';
-      card.style.visibility = 'visible';
-      card.style.opacity = '1';
-
-      // Forçar reflow para garantir que o estilo seja aplicado
       card.offsetHeight;
-
-      console.log('Card de último dislike atualizado e exibido');
-    } else {
-      console.error('Card de último dislike não encontrado no DOM');
-      // Tentar recriar o card dentro do container se não estiver no DOM
-      if (container) {
-        const newCard = document.createElement('div');
-        newCard.id = 'autoswipe-last-dislike-card';
-        newCard.style.width = '100%';
-        newCard.style.backgroundColor = 'rgba(139, 0, 0, 0.95)';
-        newCard.style.color = 'white';
-        newCard.style.padding = '15px';
-        newCard.style.borderRadius = '8px';
-        newCard.style.fontFamily = 'Arial, sans-serif';
-        newCard.style.fontSize = '13px';
-        newCard.style.border = '2px solid #f44336';
-        newCard.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.3)';
-        newCard.style.marginTop = '10px';
-        container.appendChild(newCard);
-        // Atualizar novamente com o novo card
-        setTimeout(() => updateLastDislikeCard(), 50);
-      }
     }
   }
 
@@ -1538,54 +1834,26 @@
       if (key) el.textContent = t(key);
     });
     pauseButton.textContent = isPaused ? t('continue') : t('pause');
+    pauseButton.className = 'as-btn-primary ' + (isPaused ? 'as-btn-paused' : 'as-btn-running');
     likesLimitStatusText.textContent = likesLimitEnabled ? t('enabled') : t('disabled');
+    likesLimitStatusText.className = likesLimitEnabled ? 'as-status-enabled' : 'as-status-disabled';
     heightFilterStatusText.textContent = heightFilterEnabled ? t('enabled') : t('disabled');
+    heightFilterStatusText.className = heightFilterEnabled ? 'as-status-enabled' : 'as-status-disabled';
     likesLimitInput.placeholder = t('limitPlaceholder');
     heightInput.placeholder = t('heightPlaceholder');
     optionGreater.textContent = t('greaterThan');
     optionLess.textContent = t('lessThan');
+    profileInfoLabel.textContent = t('aboutMe');
     updateLikeCounter();
     updateDislikeCounter();
     if (lastExtractedInfo) {
-      profileInfoContainer.innerHTML = '';
-      let hasInfo = false;
-      if (lastExtractedInfo.distance) {
-        profileInfoContainer.appendChild(createInfoRow('distance', lastExtractedInfo.distance));
-        hasInfo = true;
-      }
-      if (lastExtractedInfo.height) {
-        profileInfoContainer.appendChild(createInfoRow('height', lastExtractedInfo.height));
-        hasInfo = true;
-      }
-      if (lastExtractedInfo.profession) {
-        profileInfoContainer.appendChild(createInfoRow('profession', lastExtractedInfo.profession));
-        hasInfo = true;
-      }
-      if (lastExtractedInfo.genderPronoun) {
-        profileInfoContainer.appendChild(createInfoRow('pronouns', lastExtractedInfo.genderPronoun));
-        hasInfo = true;
-      }
-      if (lastExtractedInfo.languages) {
-        profileInfoContainer.appendChild(createInfoRow('languages', lastExtractedInfo.languages));
-        hasInfo = true;
-      }
-      if (!hasInfo) {
-        const noInfo = document.createElement('div');
-        noInfo.textContent = t('noInfoExtracted');
-        noInfo.style.color = '#ff6b6b';
-        profileInfoContainer.appendChild(noInfo);
-      }
+      _renderProfileInfoRows(lastExtractedInfo);
       const aboutDisplay = (lastAboutMeText && lastAboutMeText !== 'Não disponível') ? lastAboutMeText : t('notAvailable');
-      profileInfo.textContent = `${t('aboutMe')}: ${aboutDisplay}`;
-      const name = (!currentProfileName || currentProfileName === 'Não disponível') ? t('notAvailable') : currentProfileName;
-      const age = (!currentProfileAge || currentProfileAge === 'Não disponível') ? t('notAvailable') : currentProfileAge;
-      nameAgeContainer.textContent = formatT('nameAgeFormat', name, age);
+      profileInfoText.textContent = aboutDisplay;
     } else {
-      profileInfo.textContent = `${t('aboutMe')}: ${t('notAvailable')}`;
-      const name = (!currentProfileName || currentProfileName === 'Não disponível') ? t('notAvailable') : currentProfileName;
-      const age = (!currentProfileAge || currentProfileAge === 'Não disponível') ? t('notAvailable') : currentProfileAge;
-      nameAgeContainer.textContent = formatT('nameAgeFormat', name, age);
+      profileInfoText.textContent = t('notAvailable');
     }
+    updateNameAge();
     updateLastDislikeCard();
   }
 
@@ -1828,10 +2096,8 @@
         const profileInfo = extractProfileInfo();
 
         // 6. VERIFICAR PALAVRAS PROIBIDAS
-        let forbiddenWordFound = false;
         for (const word of forbiddenWords) {
           if (profileText.toLowerCase().includes(word.toLowerCase())) {
-            forbiddenWordFound = true;
             const dislikeButton = findDislikeButton();
             if (dislikeButton) {
               // Capturar nome e idade DIRETAMENTE do perfil aberto no último momento, antes de dar o dislike
@@ -2016,21 +2282,17 @@
   async function main() {
     console.log('AutoSwipe iniciado');
 
-    // Unblur dos cards "Likes": apenas uma vez ao carregar (sem interval, para evitar block por excesso de chamadas)
     unblurLikesCards();
 
-    // Atualizar card de último dislike a cada 10 segundos
     setInterval(() => {
-      if (lastDislikeTimestamp) {
-        updateLastDislikeCard();
-      }
+      if (lastDislikeTimestamp) updateLastDislikeCard();
     }, 10000);
 
     while (true) {
       if (!isPaused) {
         await autoAction();
       } else {
-        await new Promise((resolve) => setTimeout(resolve, 100)); // Aguardar brevemente enquanto pausado
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
   }
@@ -2039,12 +2301,12 @@
   let offsetX = 0;
   let offsetY = 0;
 
-  container.addEventListener('mousedown', function (e) {
-    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
+  asHeader.addEventListener('mousedown', function (e) {
+    if (e.target.tagName === 'BUTTON') return;
     isDragging = true;
     offsetX = e.clientX - container.getBoundingClientRect().left;
     offsetY = e.clientY - container.getBoundingClientRect().top;
-    container.style.cursor = 'move';
+    asHeader.style.cursor = 'grabbing';
   });
 
   document.addEventListener('mousemove', function (e) {
@@ -2057,13 +2319,12 @@
 
   document.addEventListener('mouseup', function () {
     if (isDragging) {
-      // Salvar posição atual do modal no localStorage
       const rect = container.getBoundingClientRect();
       localStorage.setItem('modalPositionLeft', rect.left.toString());
       localStorage.setItem('modalPositionTop', rect.top.toString());
     }
     isDragging = false;
-    container.style.cursor = 'default';
+    asHeader.style.cursor = 'move';
   });
 
   main();
