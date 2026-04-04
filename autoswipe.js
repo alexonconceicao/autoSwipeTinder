@@ -2,23 +2,18 @@
 // @name         Auto Liker for Tinder (AutoSwipe)
 // @name:pt      Auto Liker para Tinder (AutoSwipe)
 // @name:pt-BR   Auto Liker para Tinder (AutoSwipe)
-
 // @description  Auto swipe com filtro por palavras-chave, controle de intervalo e painel visual.
 // @description:pt Script de auto like e dislike com filtros, sliders e painel de controle.
 // @description:pt-BR Script de auto like e dislike no Tinder com filtros, sliders e painel visual.
-
 // @version      1.14.0
 // @namespace    https://greasyfork.org/users/1416065
 // @author       Nox
 // @license      MIT
-
 // @match        https://tinder.com/*
-// @compatible   chrome
-// @compatible   firefox
 // @grant        none
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=tinder.com
-// @downloadURL https://update.greasyfork.org/scripts/521871/Auto%20Liker%20para%20Tinder%20%28AutoSwipe%29.user.js
-// @updateURL https://update.greasyfork.org/scripts/521871/Auto%20Liker%20para%20Tinder%20%28AutoSwipe%29.meta.js
+// @downloadURL  https://update.greasyfork.org/scripts/521871/Auto%20Liker%20para%20Tinder%20%28AutoSwipe%29.user.js
+// @updateURL    https://update.greasyfork.org/scripts/521871/Auto%20Liker%20para%20Tinder%20%28AutoSwipe%29.meta.js
 // ==/UserScript==
 
 
