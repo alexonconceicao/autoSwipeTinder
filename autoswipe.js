@@ -7,7 +7,7 @@
 // @description:pt Script de auto like e dislike com filtros, sliders e painel de controle.
 // @description:pt-BR Script de auto like e dislike no Tinder com filtros, sliders e painel visual.
 
-// @version      1.13.1
+// @version      1.14.0
 // @namespace    https://greasyfork.org/users/1416065
 // @author       Nox
 // @license      MIT
@@ -660,15 +660,21 @@
   asMinimizeBtn.id = 'as-minimize-btn';
   asMinimizeBtn.title = 'Minimizar / Restaurar';
   asMinimizeBtn.textContent = '−';
-  let asMinimized = false;
+  let asMinimized = localStorage.getItem('autoswipeMinimized') === 'true';
   const asBody = document.createElement('div');
   asBody.id = 'as-body';
+  if (asMinimized) {
+    asBody.style.display = 'none';
+    asMinimizeBtn.textContent = '+';
+    container.style.maxHeight = 'none';
+  }
   asMinimizeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     asMinimized = !asMinimized;
     asBody.style.display = asMinimized ? 'none' : 'flex';
     asMinimizeBtn.textContent = asMinimized ? '+' : '−';
     container.style.maxHeight = asMinimized ? 'none' : '92vh';
+    localStorage.setItem('autoswipeMinimized', String(asMinimized));
   });
 
   asHeader.appendChild(asLogo);
@@ -1088,8 +1094,11 @@
   });
 
   heightInput.addEventListener('input', () => {
-    heightThreshold = parseInt(heightInput.value);
-    localStorage.setItem('heightThreshold', heightThreshold);
+    const parsed = parseInt(heightInput.value);
+    if (!isNaN(parsed) && parsed > 0) {
+      heightThreshold = parsed;
+      localStorage.setItem('heightThreshold', heightThreshold);
+    }
   });
 
   heightConditionSelect.addEventListener('change', () => {
@@ -1487,7 +1496,7 @@
     }
 
     // Método 4: Buscar em spans dentro do profileContainer
-    if (name === 'Não disponível' || age === 'Não disponível') {
+    if ((name === 'Não disponível' || age === 'Não disponível') && profileContainer) {
       const allSpans = profileContainer.querySelectorAll('span');
       for (const span of allSpans) {
         const text = span.textContent.trim();
@@ -1683,15 +1692,17 @@
   });
 
   // Drag da pill
-  let pillDragging = false, pillDx = 0, pillDy = 0;
+  let pillDragging = false, pillDidDrag = false, pillDx = 0, pillDy = 0;
   floatingPill.addEventListener('mousedown', (e) => {
     pillDragging = true;
+    pillDidDrag = false;
     pillDx = e.clientX - floatingPill.getBoundingClientRect().left;
     pillDy = e.clientY - floatingPill.getBoundingClientRect().top;
     e.stopPropagation();
   });
   document.addEventListener('mousemove', (e) => {
     if (!pillDragging) return;
+    pillDidDrag = true;
     floatingPill.style.left = (e.clientX - pillDx) + 'px';
     floatingPill.style.top = (e.clientY - pillDy) + 'px';
     floatingPill.style.right = 'auto';
@@ -1722,7 +1733,7 @@
 
   // Expandir ao clicar na pill
   floatingPill.addEventListener('click', () => {
-    if (pillDragging) return;
+    if (pillDidDrag) { pillDidDrag = false; return; }
     container.style.display = 'flex';
     floatingPill.style.display = 'none';
   });
@@ -1817,12 +1828,32 @@
     const reasonText = lastDislikeReason || t('notSpecified');
 
     if (card) {
-      card.innerHTML = `
-        <div style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(248,113,113,0.7);margin-bottom:6px">${t('lastDislikeTitle')}</div>
-        <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:5px">${nameAgeText}</div>
-        <div style="font-size:11px;color:rgba(255,255,255,0.55);margin-bottom:4px">${t('reason')}: <span style="color:rgba(255,255,255,0.8)">${reasonText}</span></div>
-        <div style="font-size:11px;color:rgba(74,222,128,0.7)">${likesText} ${t('ago')} · ${minutesText} ${t('ago')}</div>
-      `;
+      card.textContent = '';
+
+      const titleDiv = document.createElement('div');
+      titleDiv.style.cssText = 'font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(248,113,113,0.7);margin-bottom:6px';
+      titleDiv.textContent = t('lastDislikeTitle');
+
+      const nameDiv = document.createElement('div');
+      nameDiv.style.cssText = 'font-size:14px;font-weight:700;color:#fff;margin-bottom:5px';
+      nameDiv.textContent = nameAgeText;
+
+      const reasonDiv = document.createElement('div');
+      reasonDiv.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.55);margin-bottom:4px';
+      reasonDiv.textContent = t('reason') + ': ';
+      const reasonValue = document.createElement('span');
+      reasonValue.style.color = 'rgba(255,255,255,0.8)';
+      reasonValue.textContent = reasonText;
+      reasonDiv.appendChild(reasonValue);
+
+      const timeDiv = document.createElement('div');
+      timeDiv.style.cssText = 'font-size:11px;color:rgba(74,222,128,0.7)';
+      timeDiv.textContent = `${likesText} ${t('ago')} · ${minutesText} ${t('ago')}`;
+
+      card.appendChild(titleDiv);
+      card.appendChild(nameDiv);
+      card.appendChild(reasonDiv);
+      card.appendChild(timeDiv);
       card.style.display = 'block';
       card.offsetHeight;
     }
@@ -2020,7 +2051,10 @@
     if (likesLimitEnabled && likesLimit !== null && likesCount >= likesLimit) {
       isPaused = true;
       pauseButton.textContent = t('continue');
-      pauseButton.style.backgroundColor = '#4caf50';
+      pauseButton.className = 'as-btn-primary as-btn-paused';
+      asStatusDot.className = 'as-status-dot paused';
+      asStatusText.textContent = '⏸';
+      pillDot.className = 'as-status-dot paused';
       localStorage.setItem('autoswipePaused', 'true');
       showLimitReachedPopup();
       console.log(`Limite de likes atingido: ${likesCount}/${likesLimit}`);
@@ -2097,7 +2131,8 @@
 
         // 6. VERIFICAR PALAVRAS PROIBIDAS
         for (const word of forbiddenWords) {
-          if (profileText.toLowerCase().includes(word.toLowerCase())) {
+          const wordRegex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+          if (wordRegex.test(profileText)) {
             const dislikeButton = findDislikeButton();
             if (dislikeButton) {
               // Capturar nome e idade DIRETAMENTE do perfil aberto no último momento, antes de dar o dislike
@@ -2253,7 +2288,7 @@
         return;
       }
 
-      const allPreBlur = teasers.every((t) => t?.user?.pre_blur === true);
+      const allPreBlur = teasers.every((teaser) => teaser?.user?.pre_blur === true);
       if (allPreBlur && teasers.length > 0) {
         console.warn(UNBLUR_LOG, 'A API retornou apenas fotos com pre_blur: true. O Tinder pode estar servindo a mesma imagem borrada; o desbloqueio pode não ter efeito.');
       }
