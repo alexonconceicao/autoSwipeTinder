@@ -20,6 +20,9 @@
 (function () {
   'use strict';
 
+  // Versão atual do script
+  const SCRIPT_VERSION = '1.14.0';
+
   // Configurações iniciais
   let interval = 3000; // Intervalo entre ações (ms)
   let profileOpenWait = 3000; // Tempo de espera ao abrir o perfil (ms)
@@ -1890,6 +1893,56 @@
     updateLangButtonLabel();
   });
 
+  function showUpdateNotification() {
+    const lastVersion = localStorage.getItem('autoswipeLastVersion');
+    if (lastVersion === SCRIPT_VERSION) return;
+
+    const isNew = !lastVersion;
+    const msgText = isNew
+      ? (uiLang === 'en' ? `AutoSwipe v${SCRIPT_VERSION} installed!` : `AutoSwipe v${SCRIPT_VERSION} instalado!`)
+      : (uiLang === 'en' ? `AutoSwipe updated to v${SCRIPT_VERSION}` : `AutoSwipe atualizado para v${SCRIPT_VERSION}`);
+
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+      position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:10002;
+      background:linear-gradient(135deg,rgba(15,15,25,0.97),rgba(20,18,35,0.97));
+      border:1px solid rgba(255,255,255,0.12);border-radius:12px;
+      padding:12px 20px;display:flex;align-items:center;gap:10px;
+      box-shadow:0 8px 32px rgba(0,0,0,0.7);backdrop-filter:blur(16px);
+      font-family:'Segoe UI',system-ui,sans-serif;
+      animation:as-toast-in 0.4s ease;cursor:pointer;
+    `;
+
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes as-toast-in{from{opacity:0;transform:translateX(-50%) translateY(-20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+      @keyframes as-toast-out{from{opacity:1;transform:translateX(-50%) translateY(0)}to{opacity:0;transform:translateX(-50%) translateY(-20px)}}
+    `;
+    toast.appendChild(style);
+
+    const emoji = document.createElement('span');
+    emoji.textContent = '🔥';
+    emoji.style.fontSize = '16px';
+
+    const text = document.createElement('span');
+    text.style.cssText = 'font-size:13px;font-weight:600;background:linear-gradient(90deg,#f472b6,#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;';
+    text.textContent = msgText;
+
+    toast.appendChild(emoji);
+    toast.appendChild(text);
+
+    const dismiss = () => {
+      toast.style.animation = 'as-toast-out 0.3s ease forwards';
+      setTimeout(() => { if (document.body.contains(toast)) document.body.removeChild(toast); }, 300);
+    };
+
+    toast.addEventListener('click', dismiss);
+    document.body.appendChild(toast);
+    localStorage.setItem('autoswipeLastVersion', SCRIPT_VERSION);
+
+    setTimeout(dismiss, 5000);
+  }
+
   function showLimitReachedPopup() {
     // Criar popup
     const popup = document.createElement('div');
@@ -2312,6 +2365,7 @@
   async function main() {
     console.log('AutoSwipe iniciado');
 
+    showUpdateNotification();
     unblurLikesCards();
 
     setInterval(() => {
